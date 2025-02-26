@@ -1,50 +1,63 @@
-# Welcome to your Expo app 👋
+# AkorMate
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+AkorMate, müzisyenlerin şarkı akorlarını kolayca bulabilecekleri, kendi repertuarlarını oluşturabilecekleri ve favori şarkılarını kaydedebilecekleri bir mobil uygulamadır.
 
-## Get started
+## Özellikler
 
-1. Install dependencies
+- **Şarkı Arama**: Geniş şarkı veritabanında arama yapabilme
+- **Akor Görüntüleme**: Şarkıların orijinal tonlarında akorlarını görüntüleme
+- **Kullanıcı Profili**: Kişisel profil oluşturma ve yönetme
+- **Favoriler**: Sevdiğiniz şarkıları favorilerinize ekleme
+- **Repertuar Yönetimi**: Kendi repertuarlarınızı oluşturma ve düzenleme
+- **Özel Şarkılar**: Kendi şarkılarınızı ekleyebilme ve yönetebilme
 
-   ```bash
-   npm install
-   ```
+## Teknolojiler
 
-2. Start the app
+- React Native
+- Expo
+- TypeScript
+- AsyncStorage (Yerel veri depolama)
 
-   ```bash
-    npx expo start
-   ```
+## Kurulum
 
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
+1. Projeyi klonlayın:
 ```bash
-npm run reset-project
+git clone https://github.com/yourusername/akorMate.git
+cd akorMate
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+2. Bağımlılıkları yükleyin:
+```bash
+npm install
+```
 
-## Learn more
+3. Uygulamayı başlatın:
+```bash
+npx expo start
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+## Kullanım
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+1. Uygulamayı açın
+2. Hesap oluşturun veya giriş yapın
+3. Ana sayfada şarkıları arayın veya göz atın
+4. Şarkı detaylarını görüntüleyin
+5. Favorilerinize ekleyin veya repertuarınıza kaydedin
 
-## Join the community
+## Katkıda Bulunma
 
-Join our community of developers creating universal apps.
+1. Bu projeyi fork edin
+2. Yeni bir branch oluşturun (`git checkout -b feature/amazing-feature`)
+3. Değişikliklerinizi commit edin (`git commit -m 'Add some amazing feature'`)
+4. Branch'inize push edin (`git push origin feature/amazing-feature`)
+5. Pull Request oluşturun
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Lisans
+
+Bu proje MIT lisansı altında lisanslanmıştır. Detaylar için [LICENSE](LICENSE) dosyasına bakın.
+
+## İletişim
+
+Proje Sahibi - [@yourusername](https://github.com/yourusername)
+
+Proje Linki: [https://github.com/yourusername/akorMate](https://github.com/yourusername/akorMate)
