@@ -16,37 +16,60 @@ import {
 import { Link, useFocusEffect, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { lightTheme, darkTheme } from '../src/theme/colors';
-import { getAllSongs } from '../src/db/database';
+import { getSongs } from '../src/db/database';
 import { useAuth } from '../src/context/AuthContext';
 
 interface Song {
-  id: string;
+  _id: string;  
   title: string;
   artist: string;
   originalKey: string;
 }
 
+type TabType = 'popular' | 'new' | 'random';
+
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [songs, setSongs] = useState<Song[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<TabType>('popular');
   const isDarkMode = useColorScheme() === 'dark';
   const theme = isDarkMode ? darkTheme : lightTheme;
   const { user, checkAndNavigateToProfile } = useAuth();
 
-  const loadSongs = async () => {
+  useEffect(() => {
+    loadSongs();
+  }, [activeTab]);
+
+  const loadSongs = async (search?: string) => {
     try {
-      const allSongs = await getAllSongs();
-      setSongs(allSongs || []);
+      setLoading(true);
+      const options = {
+        tag: activeTab === 'random' ? undefined : activeTab,
+        random: activeTab === 'random'
+      };
+      const data = await getSongs(search, options);
+      setSongs(data);
     } catch (error) {
       console.error('Error loading songs:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  useFocusEffect(
-    React.useCallback(() => {
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query);
+    if (query.length === 0) {
       loadSongs();
-    }, [])
-  );
+    } else if (query.length >= 2) {
+      loadSongs(query);
+    }
+  };
+
+  const handleTabPress = (tab: TabType) => {
+    setActiveTab(tab);
+    setSearchQuery('');
+  };
 
   const filteredSongs = songs.filter(song =>
     song.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -62,7 +85,7 @@ export default function Home() {
       asChild
     >
       <TouchableOpacity
-        style={[styles.songItem, { backgroundColor: theme.card }]}
+        style={[styles.songItem, { backgroundColor: theme.card, borderBottomColor: theme.border }]}
         activeOpacity={0.7}
       >
         <View style={styles.songInfo}>
@@ -104,7 +127,7 @@ export default function Home() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.container}
       >
-        <View style={[styles.header, { backgroundColor: theme.card }]}>
+        <View style={styles.header}>
           <Text style={[styles.title, { color: theme.text }]}>Akor Mate</Text>
           <TouchableOpacity
             onPress={() => checkAndNavigateToProfile()}
@@ -116,29 +139,54 @@ export default function Home() {
           </TouchableOpacity>
         </View>
 
-        <View style={[styles.searchContainer, { backgroundColor: theme.card }]}>
-          <Ionicons name="search" size={20} color={theme.text + '66'} />
-          <TextInput
-            style={[styles.searchInput, { color: theme.text }]}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="Şarkı veya sanatçı ara"
-            placeholderTextColor={theme.text + '66'}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity 
-              onPress={() => setSearchQuery('')}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        <View style={styles.searchContainer}>
+          <View style={[styles.searchBox, { backgroundColor: theme.inputBackground }]}>
+            <Ionicons name="search" size={20} color={theme.text + '66'} />
+            <TextInput
+              style={[styles.searchInput, { color: theme.text }]}
+              value={searchQuery}
+              onChangeText={handleSearch}
+              placeholder="Şarkı veya sanatçı ara"
+              placeholderTextColor={theme.text + '66'}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity 
+                onPress={() => handleSearch('')}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="close-circle" size={20} color={theme.text + '66'} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        <View style={styles.tabContainer}>
+          {(['popular', 'new', 'random'] as TabType[]).map((tab) => (
+            <TouchableOpacity
+              key={tab}
+              style={[
+                styles.tab,
+                activeTab === tab && { backgroundColor: theme.primary }
+              ]}
+              onPress={() => handleTabPress(tab)}
             >
-              <Ionicons name="close-circle" size={20} color={theme.text + '66'} />
+              <Text
+                style={[
+                  styles.tabText,
+                  { color: activeTab === tab ? theme.background : theme.text }
+                ]}
+              >
+                {tab === 'popular' ? 'Popüler' :
+                 tab === 'new' ? 'Yeni' : 'Rastgele'}
+              </Text>
             </TouchableOpacity>
-          )}
+          ))}
         </View>
 
         <FlatList
           data={filteredSongs}
           renderItem={renderSongItem}
-          keyExtractor={item => item.id.toString()}
+          keyExtractor={item => item._id}  
           contentContainerStyle={styles.listContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -162,7 +210,11 @@ interface Styles {
   title: TextStyle;
   addButton: ViewStyle;
   searchContainer: ViewStyle;
+  searchBox: ViewStyle;
   searchInput: TextStyle;
+  tabContainer: ViewStyle;
+  tab: ViewStyle;
+  tabText: TextStyle;
   listContent: ViewStyle;
   songItem: ViewStyle;
   songInfo: ViewStyle;
@@ -216,23 +268,35 @@ const styles = StyleSheet.create<Styles>({
     shadowRadius: 2,
   },
   searchContainer: {
+    padding: 16,
+  },
+  searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    margin: 12,
-    marginTop: 4,
-    padding: 12,
-    borderRadius: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    height: 40,
   },
   searchInput: {
     flex: 1,
     marginLeft: 8,
-    marginRight: 8,
     fontSize: 16,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 8,
+    marginHorizontal: 4,
+    borderRadius: 20,
+    alignItems: 'center',
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
   listContent: {
     padding: 12,

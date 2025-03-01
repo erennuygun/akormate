@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -7,79 +7,51 @@ import {
   SafeAreaView,
   Platform,
   StatusBar,
-  Dimensions,
+  Alert,
 } from 'react-native';
-import { Link } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { lightTheme, darkTheme } from '../src/theme/colors';
-import {
-  getFavorites,
-  getUserRepertoires,
-  getUserPrivateSongs,
-} from '../src/db/database';
 import { useAuth } from '../src/context/AuthContext';
 import { useColorScheme } from 'react-native';
-
-const { width } = Dimensions.get('window');
-const CARD_WIDTH = width - 32; // 16 padding on each side
 
 interface MenuItem {
   id: string;
   title: string;
   icon: keyof typeof Ionicons.glyphMap;
   route: string;
-  count: number;
   description: string;
 }
 
 export default function Profile() {
   const isDarkMode = useColorScheme() === 'dark';
   const theme = isDarkMode ? darkTheme : lightTheme;
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const { user, signOut } = useAuth();
+  const router = useRouter();
 
-  useEffect(() => {
-    if (user) {
-      loadCounts();
-    }
-  }, [user]);
-
-  const loadCounts = async () => {
-    try {
-      const favorites = await getFavorites(user.id);
-      const repertoires = await getUserRepertoires(user.id);
-      const privateSongs = await getUserPrivateSongs(user.id);
-
-      setMenuItems([
-        {
-          id: '1',
-          title: 'Beğendiklerim',
-          icon: 'heart',
-          route: '/favorites',
-          count: favorites.length,
-          description: 'Beğendiğiniz şarkıları burada bulabilirsiniz',
-        },
-        {
-          id: '2',
-          title: 'Repertuarlarım',
-          icon: 'list',
-          route: '/repertoires',
-          count: repertoires.length,
-          description: 'Oluşturduğunuz repertuarlar burada listelenir',
-        },
-        {
-          id: '3',
-          title: 'Özel Şarkılarım',
-          icon: 'musical-notes',
-          route: '/private-songs',
-          count: privateSongs.length,
-          description: 'Sadece size özel şarkılarınız',
-        },
-      ]);
-    } catch (error) {
-      console.error('Error loading counts:', error);
-    }
-  };
+  const menuItems: MenuItem[] = [
+    {
+      id: '1',
+      title: 'Beğendiklerim',
+      icon: 'heart',
+      route: 'favorites',
+      description: 'Beğendiğiniz şarkıları burada bulabilirsiniz',
+    },
+    {
+      id: '2',
+      title: 'Repertuarlarım',
+      icon: 'list',
+      route: 'repertoires',
+      description: 'Oluşturduğunuz repertuarlar burada listelenir',
+    },
+    {
+      id: '3',
+      title: 'Özel Şarkılarım',
+      icon: 'musical-notes',
+      route: 'private-songs',
+      description: 'Sadece size özel şarkılarınız',
+    },
+  ];
 
   const handleSignOut = () => {
     Alert.alert(
@@ -88,29 +60,33 @@ export default function Profile() {
       [
         {
           text: 'İptal',
-          style: 'cancel',
+          style: 'cancel' as const,
         },
         {
           text: 'Çıkış Yap',
-          style: 'destructive',
+          style: 'destructive' as const,
           onPress: signOut,
         },
       ]
     );
   };
 
+  const handleMenuItemPress = (route: string) => {
+    if (!user || !user.id) {
+      Alert.alert('Hata', 'Bu özelliği kullanmak için giriş yapmalısınız.');
+      return;
+    }
+    router.push(`/${route}`);
+  };
+
   if (!user) return null;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.card }]}>
+      <View style={styles.header}>
         <Text style={[styles.title, { color: theme.text }]}>Profilim</Text>
-        <TouchableOpacity
-          onPress={handleSignOut}
-          style={styles.signOutButton}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="log-out-outline" size={24} color={theme.primary} />
+        <TouchableOpacity onPress={handleSignOut} style={styles.signOutButton}>
+          <Ionicons name="log-out-outline" size={24} color={theme.text} />
         </TouchableOpacity>
       </View>
 
@@ -122,40 +98,26 @@ export default function Profile() {
         <Text style={[styles.userEmail, { color: theme.text + '99' }]}>{user.email}</Text>
       </View>
 
-      <View style={styles.cardsContainer}>
+      <View style={styles.menuContainer}>
         {menuItems.map((item) => (
-          <Link href={item.route} asChild key={item.id}>
-            <TouchableOpacity
-              style={[
-                styles.card,
-                {
-                  backgroundColor: theme.card + '20',
-                  borderColor: theme.card + '40',
-                }
-              ]}
-              activeOpacity={0.7}
-            >
-              <View style={styles.cardContent}>
-                <View style={styles.cardLeft}>
-                  <Ionicons name={item.icon} size={24} color={theme.primary} />
-                  <Text style={[styles.cardTitle, { color: theme.text }]}>
-                    {item.title}
+          <TouchableOpacity
+            key={item.id}
+            style={[styles.menuItem, { backgroundColor: theme.card }]}
+            onPress={() => handleMenuItemPress(item.route)}
+          >
+            <View style={styles.menuItemContent}>
+              <View style={styles.menuItemLeft}>
+                <Ionicons name={item.icon} size={24} color={theme.primary} />
+                <View style={styles.menuItemTextContainer}>
+                  <Text style={[styles.menuItemTitle, { color: theme.text }]}>{item.title}</Text>
+                  <Text style={[styles.menuItemDescription, { color: theme.text + '99' }]}>
+                    {item.description}
                   </Text>
-                </View>
-                <View style={styles.cardRight}>
-                  <Text style={[styles.cardCount, { color: theme.text + '99' }]}>
-                    {item.count}
-                  </Text>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={20}
-                    color={theme.text + '66'}
-                    style={styles.arrowIcon}
-                  />
                 </View>
               </View>
-            </TouchableOpacity>
-          </Link>
+              <Ionicons name="chevron-forward" size={24} color={theme.text + '99'} />
+            </View>
+          </TouchableOpacity>
         ))}
       </View>
     </SafeAreaView>
@@ -169,83 +131,65 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#00000010',
+    alignItems: 'center',
+    padding: 16,
   },
   title: {
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 24,
+    fontWeight: 'bold',
   },
   signOutButton: {
     padding: 8,
   },
   userInfo: {
     alignItems: 'center',
-    paddingVertical: 24,
+    padding: 16,
   },
   avatarContainer: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    alignItems: 'center',
+    marginBottom: 16,
   },
   userName: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: 'bold',
     marginBottom: 4,
   },
   userEmail: {
-    fontSize: 14,
-  },
-  cardsContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-  card: {
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-    borderWidth: 1,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  cardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  cardLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  cardTitle: {
     fontSize: 16,
-    fontWeight: '500',
-    marginLeft: 12,
   },
-  cardRight: {
+  menuContainer: {
+    padding: 16,
+  },
+  menuItem: {
+    borderRadius: 12,
+    marginBottom: 12,
+    padding: 16,
+  },
+  menuItemContent: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
-  cardCount: {
-    fontSize: 14,
-    marginRight: 8,
+  menuItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
-  arrowIcon: {
-    marginLeft: 4,
+  menuItemTextContainer: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  menuItemTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  menuItemDescription: {
+    fontSize: 14,
   },
 });

@@ -15,11 +15,18 @@ export default function Login() {
 
   const handleLogin = async () => {
     try {
-      const user = await loginUser(email, password);
-      await signIn(user);
-      router.back();
+      const userData = await loginUser(email, password);
+      console.log('Login successful, user data:', userData); // Debug log
+      
+      if (!userData || !userData.id) {
+        throw new Error('Invalid user data received');
+      }
+      
+      await signIn(userData);
+      router.replace('/');
     } catch (error) {
-      Alert.alert('Error', error.message);
+      console.error('Login error:', error);
+      Alert.alert('Giriş Hatası', 'Giriş yapılırken bir hata oluştu. Lütfen tekrar deneyin.');
     }
   };
 

@@ -1,7 +1,11 @@
 import pandas as pd
-import json
-import uuid
+from pymongo import MongoClient
 from datetime import datetime
+
+# MongoDB bağlantısı
+client = MongoClient('mongodb://localhost:27017/')
+db = client['akormate']
+songs_collection = db['songs']
 
 # Excel dosyasını oku
 df = pd.read_excel('sarkilar_ve_akorlar.xlsx')
@@ -12,39 +16,32 @@ df.columns = ['title', 'artist', 'originalKey', 'chords']
 # NaN değerleri temizle
 df = df.fillna('')
 
-# Şarkıları JSON formatına dönüştür
-songs = []
+# Şarkıları MongoDB'ye ekle
+added_count = 0
 for _, row in df.iterrows():
-    song = {
-        'id': str(uuid.uuid4()),
+    # Aynı başlık ve sanatçıya sahip şarkı var mı kontrol et
+    existing_song = songs_collection.find_one({
         'title': row['title'].strip(),
-        'artist': row['artist'].strip(),
-        'originalKey': row['originalKey'].strip(),
-        'chords': row['chords'].strip(),
-        'created_at': datetime.now().isoformat()
-    }
-    songs.append(song)
+        'artist': row['artist'].strip()
+    })
+    
+    if not existing_song:
+        song = {
+            'title': row['title'].strip(),
+            'artist': row['artist'].strip(),
+            'originalKey': row['originalKey'].strip(),
+            'chords': row['chords'].strip(),
+            'created_at': datetime.now()
+        }
+        songs_collection.insert_one(song)
+        added_count += 1
 
-# Mevcut songs.json dosyasını oku (varsa)
-try:
-    with open('songs.json', 'r', encoding='utf-8') as f:
-        existing_songs = json.load(f)
-except FileNotFoundError:
-    existing_songs = []
-
-# Yeni şarkıları ekle
-all_songs = existing_songs + songs
-
-# JSON dosyasına kaydet
-with open('songs.json', 'w', encoding='utf-8') as f:
-    json.dump(all_songs, f, ensure_ascii=False, indent=2)
-
-print(f"{len(songs)} şarkı başarıyla eklendi.")
-print(f"Toplam şarkı sayısı: {len(all_songs)}")
+print(f"{added_count} yeni şarkı başarıyla eklendi.")
+print(f"Toplam şarkı sayısı: {songs_collection.count_documents({})}")
 
 # İlk birkaç şarkıyı göster
 print("\nÖrnek şarkılar:")
-for song in songs[:3]:
+for song in songs_collection.find().limit(3):
     print(f"\nBaşlık: {song['title']}")
     print(f"Sanatçı: {song['artist']}")
     print(f"Ton: {song['originalKey']}")

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,11 +10,15 @@ import {
   Modal,
   SafeAreaView,
   Platform,
+  Alert,
+  Dimensions,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { lightTheme, darkTheme } from '../src/theme/colors';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../src/context/AuthContext';
+import { addToFavorites, removeFromFavorites, checkIsFavorite } from '../src/db/database';
 
 const LyricLine = ({ line, theme, fontSize }) => {
   const isChordLine = /^([A-G][#b]?m?(aj)?[0-9]*\s*)+$/.test(line.trim());
@@ -55,46 +59,154 @@ export default function SongDetail() {
   const params = useLocalSearchParams();
   const song = params.song ? JSON.parse(params.song) : null;
   
+  // Eğer song verisi yoksa loading veya error state göster
+  if (!song) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <Text style={{ color: theme.text }}>Şarkı yüklenemedi.</Text>
+      </View>
+    );
+  }
+
   const [isFavorite, setIsFavorite] = useState(false);
   const [fontSize, setFontSize] = useState(16);
   const [selectedKey, setSelectedKey] = useState(song?.originalKey || '');
   const [showKeyPicker, setShowKeyPicker] = useState(false);
+  const [showSpeedPicker, setShowSpeedPicker] = useState(false);
   const isDarkMode = useColorScheme() === 'dark';
   const theme = isDarkMode ? darkTheme : lightTheme;
+  const { user } = useAuth();
+  const [isAutoScrolling, setIsAutoScrolling] = useState(false);
+  const [scrollSpeed, setScrollSpeed] = useState(100); // default 100ms
+  const scrollViewRef = useRef(null);
+  const scrollInterval = useRef(null);
+  const { height: windowHeight } = Dimensions.get('window');
+  const [contentHeight, setContentHeight] = useState(0);
+  const [scrollViewHeight, setScrollViewHeight] = useState(0);
+
+  // Otomatik scroll'u temizle
+  useEffect(() => {
+    return () => {
+      if (scrollInterval.current) {
+        clearInterval(scrollInterval.current);
+      }
+    };
+  }, []);
+
+  const startAutoScroll = () => {
+    if (!scrollViewRef.current) return;
+
+    const SCROLL_STEP = 1;
+    scrollInterval.current = setInterval(() => {
+      const currentOffset = scrollViewRef.current?._lastScrollPos || 0;
+      
+      // En alttaki içerik görünür olduğunda dur
+      if (currentOffset + scrollViewHeight >= contentHeight + 10) { // 20 piksel tolerans
+        stopAutoScroll();
+        return;
+      }
+
+      scrollViewRef.current?.scrollTo({
+        y: currentOffset + SCROLL_STEP,
+        animated: false
+      });
+    }, scrollSpeed);
+
+    setIsAutoScrolling(true);
+  };
+
+  const stopAutoScroll = () => {
+    if (scrollInterval.current) {
+      clearInterval(scrollInterval.current);
+      scrollInterval.current = null;
+    }
+    setIsAutoScrolling(false);
+  };
+
+  const toggleAutoScroll = () => {
+    if (isAutoScrolling) {
+      stopAutoScroll();
+    } else {
+      startAutoScroll();
+    }
+  };
+
+  const handleSpeedChange = (newSpeed) => {
+    setScrollSpeed(newSpeed);
+    if (isAutoScrolling) {
+      stopAutoScroll();
+      startAutoScroll();
+    }
+    setShowSpeedPicker(false);
+  };
+
+  const getSpeedText = () => {
+    switch (scrollSpeed) {
+      case 150: return 'Yavaş';
+      case 50: return 'Hızlı';
+      default: return 'Normal';
+    }
+  };
+
+  // Şarkı sözlerinin toplam uzunluğunu hesapla
+  const calculateTotalLength = () => {
+    if (!song?.chords) return 0;
+    return song.chords.length;
+  };
+
+  // Otomatik kaydırma hızını hesapla (karakter başına milisaniye)
+  const calculateScrollDuration = () => {
+    const totalLength = calculateTotalLength();
+    // Her karakter için ortalama 100ms (ayarlanabilir)
+    const baseSpeed = 500;
+    return totalLength * baseSpeed;
+  };
 
   const keys = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
   const isTransposed = selectedKey !== song?.originalKey;
 
   useEffect(() => {
-    checkFavorite();
-  }, []);
+    if (song?._id) {
+      checkFavorite();
+    }
+  }, [song]);
 
   const checkFavorite = async () => {
     try {
-      const favorites = await AsyncStorage.getItem('favorites');
-      const favoritesArray = favorites ? JSON.parse(favorites) : [];
-      setIsFavorite(favoritesArray.includes(song.id));
+      const isFav = await checkIsFavorite(song._id);
+      setIsFavorite(isFav);
     } catch (error) {
-      console.error('Error checking favorite:', error);
+      // Hata durumunda favori olmadığını varsay
+      setIsFavorite(false);
     }
   };
 
-  const toggleFavorite = async () => {
+  const handleFavoritePress = async () => {
     try {
-      const favorites = await AsyncStorage.getItem('favorites');
-      const favoritesArray = favorites ? JSON.parse(favorites) : [];
-      
-      if (isFavorite) {
-        const newFavorites = favoritesArray.filter(id => id !== song.id);
-        await AsyncStorage.setItem('favorites', JSON.stringify(newFavorites));
-      } else {
-        favoritesArray.push(song.id);
-        await AsyncStorage.setItem('favorites', JSON.stringify(favoritesArray));
+      if (!user) {
+        Alert.alert(
+          'Giriş Yapın',
+          'Favorilere eklemek için giriş yapmanız gerekiyor.',
+          [
+            { text: 'İptal', style: 'cancel' },
+            { text: 'Giriş Yap', onPress: () => router.push('/auth/login') }
+          ]
+        );
+        return;
       }
-      
-      setIsFavorite(!isFavorite);
+
+      if (isFavorite) {
+        await removeFromFavorites(song._id);
+        setIsFavorite(false);
+      } else {
+        await addToFavorites(song._id);
+        setIsFavorite(true);
+      }
     } catch (error) {
-      console.error('Error toggling favorite:', error);
+      Alert.alert(
+        'Hata',
+        error.message || 'Bir hata oluştu'
+      );
     }
   };
 
@@ -108,14 +220,6 @@ export default function SongDetail() {
       console.error('Error sharing song:', error);
     }
   };
-
-  if (!song) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-        <Text style={[styles.errorText, { color: theme.text }]}>Şarkı bulunamadı</Text>
-      </SafeAreaView>
-    );
-  }
 
   // Seçilen tona göre semitone farkını hesapla
   const getSemitones = () => {
@@ -147,7 +251,7 @@ export default function SongDetail() {
           <TouchableOpacity onPress={shareSong} style={styles.iconButton}>
             <Ionicons name="share-outline" size={24} color={theme.text + '66'} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={toggleFavorite} style={styles.iconButton}>
+          <TouchableOpacity onPress={handleFavoritePress} style={styles.iconButton}>
             <Ionicons
               name={isFavorite ? 'heart' : 'heart-outline'}
               size={24}
@@ -173,35 +277,65 @@ export default function SongDetail() {
           </View>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={[styles.controlButton, { backgroundColor: isAutoScrolling ? theme.primary : theme.card }]}
+          onPress={toggleAutoScroll}
+          onLongPress={() => setShowSpeedPicker(true)}
+        >
+          <Ionicons
+            name={isAutoScrolling ? "pause" : "play"}
+            size={24}
+            color={isAutoScrolling ? theme.background : theme.text}
+          />
+        </TouchableOpacity>
+
         <View style={styles.controlGroup}>
           <TouchableOpacity 
             onPress={() => setFontSize(prev => Math.max(12, prev - 2))}
             style={styles.fontButton}
           >
-            <Text style={[styles.fontButtonText, { color: theme.text }]}>-A</Text>
+            <Text style={[styles.fontButtonText, { color: theme.text }]}>A-</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             onPress={() => setFontSize(prev => Math.min(24, prev + 2))}
             style={styles.fontButton}
           >
-            <Text style={[styles.fontButtonText, { color: theme.text }]}>+A</Text>
+            <Text style={[styles.fontButtonText, { color: theme.text }]}>A+</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      <ScrollView style={styles.content}>
-        <View style={[styles.songContent, { backgroundColor: theme.card }]}>
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={(event) => {
+          scrollViewRef.current._lastScrollPos = event.nativeEvent.contentOffset.y;
+        }}
+        onLayout={(event) => {
+          setScrollViewHeight(event.nativeEvent.layout.height);
+        }}
+      >
+        <View 
+          style={[styles.songContent, { backgroundColor: theme.card }]}
+          onLayout={(event) => {
+            setContentHeight(event.nativeEvent.layout.height);
+          }}
+        >
           {transposedChords.map((line, index) => (
             <LyricLine 
-              key={index} 
-              line={line} 
+              key={index}
+              line={line}
               theme={theme}
               fontSize={fontSize}
             />
           ))}
         </View>
+        <View style={{ height: windowHeight * 0.5 }} />
       </ScrollView>
 
+      {/* Ton Seçici Modal */}
       <Modal
         visible={showKeyPicker}
         transparent={true}
@@ -245,6 +379,45 @@ export default function SongDetail() {
                 </Text>
               </TouchableOpacity>
             ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Hız Seçici Modal */}
+      <Modal
+        visible={showSpeedPicker}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowSpeedPicker(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowSpeedPicker(false)}
+        >
+          <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Kaydırma Hızı</Text>
+            
+            <TouchableOpacity
+              style={[styles.speedOption, scrollSpeed === 150 && styles.selectedSpeed]}
+              onPress={() => handleSpeedChange(150)}
+            >
+              <Text style={{ color: theme.text }}>Yavaş</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.speedOption, scrollSpeed === 100 && styles.selectedSpeed]}
+              onPress={() => handleSpeedChange(100)}
+            >
+              <Text style={{ color: theme.text }}>Normal</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.speedOption, scrollSpeed === 50 && styles.selectedSpeed]}
+              onPress={() => handleSpeedChange(50)}
+            >
+              <Text style={{ color: theme.text }}>Hızlı</Text>
+            </TouchableOpacity>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -311,22 +484,27 @@ const styles = StyleSheet.create({
   keySelector: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme => theme.inputBackground,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    padding: 8,
     borderRadius: 8,
+    minWidth: 120,
+    justifyContent: 'space-between',
   },
   keyLabel: {
-    fontSize: 13,
-    marginRight: 4,
+    fontSize: 12,
+    fontWeight: '500',
   },
   keyValue: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
-    marginRight: 4,
   },
   keyPickerIcon: {
-    marginLeft: 2,
+    marginLeft: 8,
+  },
+  controlButton: {
+    padding: 8,
+    borderRadius: 8,
+    minWidth: 40,
+    alignItems: 'center',
   },
   controlGroup: {
     flexDirection: 'row',
@@ -366,15 +544,31 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalContent: {
-    width: '60%',
-    maxHeight: '70%',
     borderRadius: 12,
-    padding: 12,
+    padding: 16,
+    width: '80%',
+    maxWidth: 300,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  speedOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginVertical: 4,
+    alignItems: 'center',
+  },
+  selectedSpeed: {
+    backgroundColor: 'rgba(0,0,0,0.1)',
   },
   keyOption: {
     paddingVertical: 10,
