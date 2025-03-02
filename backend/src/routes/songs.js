@@ -8,6 +8,20 @@ router.get('/', async (req, res) => {
   try {
     const { search, tag, random } = req.query;
     
+    if (tag === 'artists') {
+      const artists = await Song.aggregate([
+        { $group: { _id: '$artist' } },
+        { $sample: { size: 20 } },
+        { $project: { 
+          _id: '$_id',
+          title: '$_id',
+          artist: { $literal: '' },
+          originalKey: { $literal: 'artist' }
+        }}
+      ]);
+      return res.json(artists);
+    }
+
     let query = {
       $or: [
         { isPrivate: false },
@@ -194,6 +208,58 @@ router.put('/batch/tag', auth, async (req, res) => {
       message: 'Tag güncellenirken bir hata oluştu',
       error: error.message 
     });
+  }
+});
+
+// Benzersiz sanatçıları getir
+router.get('/artists', async (req, res) => {
+  try {
+    const artists = await Song.aggregate([
+      { $group: { _id: "$artist" } },
+      { $sort: { _id: 1 } },
+      { $limit: 20 }
+    ]);
+
+    res.json(artists.map(a => a._id));
+  } catch (error) {
+    console.error('Sanatçıları getirirken hata:', error);
+    res.status(500).json({ message: 'Bir hata oluştu' });
+  }
+});
+
+// Sanatçıya ait şarkıları getir
+router.get('/artist/:name', async (req, res) => {
+  try {
+    const songs = await Song.find({ 
+      artist: req.params.name 
+    }).sort({ title: 1 });
+
+    res.json(songs);
+  } catch (error) {
+    console.error('Sanatçı şarkılarını getirirken hata:', error);
+    res.status(500).json({ message: 'Bir hata oluştu' });
+  }
+});
+
+// Get 20 random artists
+router.get('/random-artists', auth, async (req, res) => {
+  try {
+    const artists = await Song.aggregate([
+      { $group: { _id: '$artist' } },
+      { $sample: { size: 20 } }
+    ]);
+    
+    const formattedArtists = artists.map(a => ({
+      _id: a._id + '_artist', // Unique ID for each artist
+      title: a._id,
+      artist: '',
+      originalKey: ''
+    }));
+    
+    res.json(formattedArtists);
+  } catch (error) {
+    console.error('Error getting random artists:', error);
+    res.status(500).json({ message: error.message });
   }
 });
 

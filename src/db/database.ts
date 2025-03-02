@@ -51,31 +51,18 @@ export const saveSong = async (song: Song) => {
   }
 };
 
-export const getSongs = async (search?: string, options?: { tag?: string; random?: boolean }) => {
+export const getSongs = async (search?: string, options: { tag?: string; random?: boolean } = {}): Promise<Song[]> => {
   try {
-    let url = '/songs';
     const params = new URLSearchParams();
-    
-    if (search) {
-      params.append('search', search);
-    }
-    if (options?.tag) {
-      params.append('tag', options.tag);
-    }
-    if (options?.random) {
-      params.append('random', 'true');
-    }
+    if (search) params.append('search', search);
+    if (options.tag) params.append('tag', options.tag);
+    if (options.random) params.append('random', 'true');
 
-    const queryString = params.toString();
-    if (queryString) {
-      url += `?${queryString}`;
-    }
-
-    const response = await api.get(url);
+    const response = await api.get(`/songs?${params.toString()}`);
     return response.data;
   } catch (error) {
-    console.error('Error getting songs:', error);
-    throw error;
+    console.error('Error fetching songs:', error);
+    return [];
   }
 };
 
@@ -106,6 +93,8 @@ export const loginUser = async (email: string, password: string): Promise<User> 
     const response = await api.post('/users/login', { email, password });
     const { token, user } = response.data;
     
+    console.log('Login yanıtı:', { token: token ? 'Token var' : 'Token yok', user });
+    
     // Ensure we have a valid user object with an ID
     if (!user || !user._id) {
       throw new Error('Invalid user data received from server');
@@ -117,20 +106,43 @@ export const loginUser = async (email: string, password: string): Promise<User> 
       id: user._id
     };
     
-    setToken(token);
+    // Token'ı kaydet
+    if (token) {
+      console.log('Token kaydediliyor...');
+      await AsyncStorage.setItem('token', token);
+      setToken(token);
+      
+      // Token’ın kaydedildiğini kontrol et
+      const storedToken = await AsyncStorage.getItem('token');
+      console.log('Token kaydedildi mi:', storedToken ? 'Evet' : 'Hayır');
+      console.log('API headers:', api.defaults.headers);
+    } else {
+      console.error('Token alınamadı!');
+    }
+
     return userData;
   } catch (error) {
-    console.error('Giriş yapılırken hata:', error);
+    console.error('Giriş yapılırken detaylı hata:', error);
     throw error;
   }
 };
 
 export const logoutUser = async () => {
   try {
-    await api.post('/users/logout');
+    // Önce API'ye logout isteği gönder
+    const token = await AsyncStorage.getItem('token');
+    if (token) {
+      await api.post('/users/logout');
+    }
+    
+    // Sonra local storage ve API instance’ı temizle
+    await AsyncStorage.removeItem('token');
     clearToken();
   } catch (error) {
     console.error('Çıkış yapılırken hata:', error);
+    // Hata olsa bile token’ı temizle
+    await AsyncStorage.removeItem('token');
+    clearToken();
     throw error;
   }
 };
@@ -157,19 +169,24 @@ export const checkIsFavorite = async (songId: string) => {
 
 export const addToFavorites = async (songId: string) => {
   try {
-    // Kullanıcı giriş yapmamışsa hata fırlat
     const token = await AsyncStorage.getItem('token');
+    console.log('Token durumu:', token ? 'Token var' : 'Token yok');
+
     if (!token) {
       throw new Error('Bu işlem için giriş yapmanız gerekiyor');
     }
 
+    // API instance’ın mevcut durumunu kontrol et
+    console.log('API headers:', api.defaults.headers);
+
     const response = await api.post(`/favorites/${songId}`);
+    console.log('Favori ekleme yanıtı:', response.data);
     return response.data;
   } catch (error) {
-    if (error.response?.status === 401) {
-      throw new Error('Bu işlem için giriş yapmanız gerekiyor');
+    if (error.response) {
+      console.error('Sunucu yanıtı:', error.response.status, error.response.data);
     }
-    console.error('Favorilere eklerken hata:', error);
+    console.error('Favorilere eklerken detaylı hata:', error);
     throw error;
   }
 };
@@ -196,7 +213,11 @@ export const removeFromFavorites = async (songId: string) => {
 export const getFavorites = async () => {
   try {
     const response = await api.get('/favorites');
-    return response.data;
+    // MongoDB _id’yi id’ye dönüştür
+    return response.data.map((song: any) => ({
+      ...song,
+      id: song._id || song.id // Eğer _id varsa onu kullan, yoksa mevcut id’yi koru
+    }));
   } catch (error) {
     console.error('Favorileri getirirken hata:', error);
     throw error;
@@ -250,5 +271,38 @@ export const getUserPrivateSongs = async (userId: string) => {
   } catch (error) {
     console.error('Kullanıcı özel şarkıları getirilirken hata:', error);
     throw error;
+  }
+};
+
+export const getArtists = async (): Promise<string[]> => {
+  try {
+    const response = await api.get('/songs/artists');
+    return response.data;
+  } catch (error) {
+    console.error('Sanatçıları getirirken hata:', error);
+    throw error;
+  }
+};
+
+export const getArtistSongs = async (artistName: string): Promise<Song[]> => {
+  try {
+    const response = await api.get(`/songs/artist/${encodeURIComponent(artistName)}`);
+    return response.data.map((song: any) => ({
+      ...song,
+      id: song._id
+    }));
+  } catch (error) {
+    console.error('Sanatçı şarkılarını getirirken hata:', error);
+    throw error;
+  }
+};
+
+export const getRandomArtists = async (): Promise<Song[]> => {
+  try {
+    const response = await api.get('/songs/random-artists');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching random artists:', error);
+    return [];
   }
 };

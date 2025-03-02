@@ -2,16 +2,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  ScrollView,
-  TouchableOpacity,
   StyleSheet,
-  useColorScheme,
-  Share,
-  Modal,
+  TouchableOpacity,
   SafeAreaView,
+  ScrollView,
   Platform,
   Alert,
   Dimensions,
+  useColorScheme,
+  Share,
+  Modal
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -243,9 +243,16 @@ export default function SongDetail() {
           <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>
             {song.title}
           </Text>
-          <Text style={[styles.artist, { color: theme.text + '99' }]} numberOfLines={1}>
-            {song.artist}
-          </Text>
+          <TouchableOpacity 
+            onPress={() => router.push({
+              pathname: '/artistSongs',
+              params: { artist: song.artist }
+            })}
+          >
+            <Text style={[styles.artist, { color: theme.text + '99' }]} numberOfLines={1}>
+              {song.artist}
+            </Text>
+          </TouchableOpacity>
         </View>
         <View style={styles.headerButtons}>
           <TouchableOpacity onPress={shareSong} style={styles.iconButton}>

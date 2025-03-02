@@ -78,6 +78,19 @@ export default function Layout() {
             headerShown: false,
           }}
         />
+        <Stack.Screen
+          name="chords"
+          options={{
+            title: 'Akorlar',
+          }}
+        />
+        <Stack.Screen
+          name="tuner"
+          options={{
+            title: 'Akort Et',
+            headerShown: false,
+          }}
+        />
       </Stack>
     </AuthProvider>
   );

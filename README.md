@@ -52,4 +52,12 @@ npx expo start
 4. Branch'inize push edin (`git push origin feature/amazing-feature`)
 5. Pull Request oluşturun
 
+## Lisans
 
+Bu proje MIT lisansı altında lisanslanmıştır. Detaylar için [LICENSE](LICENSE) dosyasına bakın.
+
+## İletişim
+
+Proje Sahibi - [@yourusername](https://github.com/yourusername)
+
+Proje Linki: [https://github.com/yourusername/akorMate](https://github.com/yourusername/akorMate)
