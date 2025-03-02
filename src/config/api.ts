@@ -5,7 +5,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 let currentToken: string | null = null;
 
 // API URL'ini environment variable'dan al, yoksa default değeri kullan
-const API_URL = process.env.API_URL || 'http://192.168.1.23:5000/api';
+export const API_URL = 'http://192.168.1.23:5000/api';
+export const ASSETS_URL = 'http://192.168.1.23:5000';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -13,7 +14,7 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
   timeout: 30000,
-  withCredentials: true
+  withCredentials: false
 });
 
 // Uygulama başladığında token'ı AsyncStorage'dan yükle

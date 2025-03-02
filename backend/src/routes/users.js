@@ -3,6 +3,8 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const fs = require('fs');
+const path = require('path');
 
 // Kullanıcı kaydı
 router.post('/', async (req, res) => {
@@ -223,6 +225,44 @@ router.get('/:userId/private-songs', auth, async (req, res) => {
   } catch (error) {
     console.error('Özel şarkıları getirirken hata:', error);
     res.status(500).json({ message: 'Özel şarkıları getirirken hata' });
+  }
+});
+
+// Profil güncelleme
+router.put('/:id', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: 'Kullanıcı bulunamadı' });
+    }
+
+    // İsim güncelleme
+    if (req.body.name) {
+      user.name = req.body.name;
+    }
+
+    // Profil fotoğrafı güncelleme
+    if (req.body.photoData) {
+      const photoData = req.body.photoData;
+      const photoExtension = photoData.split(';')[0].split('/')[1];
+      const base64Data = photoData.split(',')[1];
+
+      // Profil fotoğrafı için dosya yolu
+      const photoFileName = `${user._id}.${photoExtension}`;
+      const photoPath = path.join(__dirname, '../../../assets/images/profilePictures', photoFileName);
+
+      // Base64'ten dosyaya kaydet
+      fs.writeFileSync(photoPath, base64Data, 'base64');
+
+      // Kullanıcı verisini güncelle
+      user.photoURL = `/assets/images/profilePictures/${photoFileName}`;
+    }
+
+    await user.save();
+    res.json(user);
+  } catch (error) {
+    console.error('Profil güncellenirken hata:', error);
+    res.status(500).json({ message: error.message });
   }
 });
 

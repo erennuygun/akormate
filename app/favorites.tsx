@@ -9,13 +9,15 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { lightTheme, darkTheme } from '../src/theme/colors';
-import { getFavorites } from '../src/db/database';
+import { getFavorites, removeFromFavorites } from '../src/db/database';
 import { useAuth } from '../src/context/AuthContext';
 import { useColorScheme } from 'react-native';
+import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
 
 interface FavoriteSong {
   id: string;
@@ -66,47 +68,94 @@ export default function Favorites() {
     });
   };
 
-  return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={24} color={theme.text} />
-        </TouchableOpacity>
-        <Text style={[styles.title, { color: theme.text }]}>Beğendiklerim</Text>
-        <View style={styles.placeholder} />
-      </View>
+  const renderRightActions = (progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>, item: FavoriteSong) => {
+    const scale = dragX.interpolate({
+      inputRange: [-100, 0],
+      outputRange: [1, 0],
+      extrapolate: 'clamp',
+    });
 
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.primary} />
+    const trans = dragX.interpolate({
+      inputRange: [-101, -100, -50, 0],
+      outputRange: [-50, 0, 0, 80],
+    });
+
+    return (
+      <Animated.View
+        style={[
+          styles.deleteButton,
+          {
+            transform: [{ translateX: trans }],
+            borderRadius: 12,
+          },
+        ]}
+      >
+        <Animated.View style={[{ transform: [{ scale }] }]}>
+          <Ionicons name="trash-outline" size={24} color="white" />
+        </Animated.View>
+      </Animated.View>
+    );
+  };
+
+  const handleDelete = async (songId: string) => {
+    try {
+      await removeFromFavorites(songId);
+      setSongs(prevSongs => prevSongs.filter(song => song.id !== songId));
+    } catch (error) {
+      console.error('Şarkı silinirken hata:', error);
+    }
+  };
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="chevron-back" size={24} color={theme.text} />
+          </TouchableOpacity>
+          <Text style={[styles.title, { color: theme.text }]}>Beğendiklerim</Text>
+          <View style={styles.placeholder} />
         </View>
-      ) : songs.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="heart" size={48} color={theme.text + '66'} />
-          <Text style={[styles.emptyText, { color: theme.text }]}>
-            Henüz beğendiğiniz şarkı bulunmuyor
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={songs}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={[styles.songItem, { backgroundColor: theme.card }]}
-              onPress={() => handleSongPress(item)}
-            >
-              <View>
-                <Text style={[styles.songTitle, { color: theme.text }]}>{item.title}</Text>
-                <Text style={[styles.songArtist, { color: theme.text + '99' }]}>{item.artist}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={24} color={theme.text + '99'} />
-            </TouchableOpacity>
-          )}
-          contentContainerStyle={styles.listContent}
-        />
-      )}
-    </SafeAreaView>
+
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={theme.primary} />
+          </View>
+        ) : songs.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="heart" size={48} color={theme.text + '66'} />
+            <Text style={[styles.emptyText, { color: theme.text }]}>
+              Henüz beğendiğiniz şarkı bulunmuyor
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={songs}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <Swipeable
+                renderRightActions={(progress, dragX) => renderRightActions(progress, dragX, item)}
+                rightThreshold={100}
+                overshootRight={false}
+                onSwipeableRightOpen={() => handleDelete(item.id)}
+              >
+                <TouchableOpacity
+                  style={[styles.songItem, { backgroundColor: theme.card }]}
+                  onPress={() => handleSongPress(item)}
+                >
+                  <View>
+                    <Text style={[styles.songTitle, { color: theme.text }]}>{item.title}</Text>
+                    <Text style={[styles.songArtist, { color: theme.text + '99' }]}>{item.artist}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={24} color={theme.text + '99'} />
+                </TouchableOpacity>
+              </Swipeable>
+            )}
+            contentContainerStyle={styles.listContent}
+          />
+        )}
+      </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }
 
@@ -165,5 +214,12 @@ const styles = StyleSheet.create({
   },
   songArtist: {
     fontSize: 14,
+  },
+  deleteButton: {
+    backgroundColor: '#ff4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 12,
   },
 });

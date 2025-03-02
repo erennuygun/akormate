@@ -7,7 +7,7 @@ router.post('/', async (req, res) => {
   const repertoire = new Repertoire({
     userId: req.body.userId,
     name: req.body.name,
-    songs: []
+    songs: req.body.songIds || [] // songIds'i songs dizisine atıyoruz
   });
 
   try {
@@ -23,6 +23,23 @@ router.get('/user/:userId', async (req, res) => {
   try {
     const repertoires = await Repertoire.find({ userId: req.params.userId });
     res.json(repertoires);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Repertuar detaylarını getir
+router.get('/:id', async (req, res) => {
+  try {
+    const repertoire = await Repertoire.findById(req.params.id)
+      .populate('songs')
+      .exec();
+    
+    if (!repertoire) {
+      return res.status(404).json({ message: 'Repertuar bulunamadı' });
+    }
+    
+    res.json(repertoire);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -60,6 +77,42 @@ router.delete('/:id/songs/:songId', async (req, res) => {
     await repertoire.save();
 
     res.json(repertoire);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Repertuar güncelle
+router.put('/:id', async (req, res) => {
+  try {
+    const repertoire = await Repertoire.findById(req.params.id);
+    if (!repertoire) {
+      return res.status(404).json({ message: 'Repertuar bulunamadı' });
+    }
+
+    if (req.body.name) {
+      repertoire.name = req.body.name;
+    }
+    
+    if (req.body.songs) {
+      repertoire.songs = req.body.songs.map(song => song._id || song);
+    }
+
+    const updatedRepertoire = await repertoire.save();
+    res.json(updatedRepertoire);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Repertuar silme
+router.delete('/:id', async (req, res) => {
+  try {
+    const repertoire = await Repertoire.findByIdAndDelete(req.params.id);
+    if (!repertoire) {
+      return res.status(404).json({ message: 'Repertuar bulunamadı' });
+    }
+    res.json({ message: 'Repertuar başarıyla silindi' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

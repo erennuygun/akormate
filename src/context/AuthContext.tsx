@@ -1,28 +1,39 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useSegments, useRootNavigationState } from 'expo-router';
+import { updateUserInDB } from '../db/database';
 
-interface AuthContextType {
-  user: any | null;
-  isLoading: boolean;
+export interface User {
+  _id: string;
+  email: string;
+  name?: string;
+  photoURL?: string;
+  token?: string;
+}
+
+export interface AuthContextType {
+  user: User | null;
+  loading: boolean;
   signIn: (userData: any) => Promise<void>;
+  signUp: (userData: any) => Promise<void>;
   signOut: () => Promise<void>;
   checkAndNavigateToProfile: () => void;
+  updateUserProfile: (profileData: { displayName?: string; photoURL?: string }) => Promise<any>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function useAuth() {
+export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-}
+};
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<any | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
   const segments = useSegments();
 
   useEffect(() => {
@@ -38,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Error checking user:', error);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
@@ -46,25 +57,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await AsyncStorage.setItem('user', JSON.stringify(userData));
       setUser(userData);
-      if (segments[0] === 'auth') {
-        router.replace('/');
-      }
+      router.replace('/(tabs)');
     } catch (error) {
       console.error('Error signing in:', error);
       throw error;
     }
   };
 
+  const signUp = async (userData: any) => {
+    // TO DO: implement sign up logic
+  };
+
   const signOut = async () => {
     try {
       await AsyncStorage.removeItem('user');
       setUser(null);
-      if (segments[0] !== 'auth') {
-        router.replace('/auth/login');
-      }
+      router.replace('/');
     } catch (error) {
       console.error('Error signing out:', error);
-      throw error;
     }
   };
 
@@ -76,15 +86,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateUserProfile = async (profileData: { displayName?: string; photoURL?: string }) => {
+    try {
+      if (!user) throw new Error('Kullanıcı bulunamadı');
+
+      // MongoDB'de kullanıcı bilgilerini güncelle
+      const updatedUser = await updateUserInDB(user._id, {
+        name: profileData.displayName,
+        photoData: profileData.photoURL,
+      });
+
+      // AsyncStorage ve state'i güncelle
+      const newUserData = {
+        ...user,
+        name: updatedUser.name,
+        photoURL: updatedUser.photoURL,
+      };
+      await AsyncStorage.setItem('user', JSON.stringify(newUserData));
+      setUser(newUserData);
+
+      return newUserData;
+    } catch (error) {
+      console.error('Profil güncellenirken hata:', error);
+      throw error;
+    }
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 
-      isLoading, 
+      loading, 
       signIn, 
+      signUp,
       signOut,
-      checkAndNavigateToProfile 
+      checkAndNavigateToProfile,
+      updateUserProfile
     }}>
-      {isLoading ? null : children}
+      {loading ? null : children}
     </AuthContext.Provider>
   );
 }

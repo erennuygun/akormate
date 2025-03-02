@@ -8,6 +8,7 @@ import {
   Platform,
   StatusBar,
   Alert,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,6 +29,17 @@ export default function Profile() {
   const theme = isDarkMode ? darkTheme : lightTheme;
   const { user, signOut } = useAuth();
   const router = useRouter();
+
+  const getProfilePhotoUrl = () => {
+    console.log('User Object:', user);
+    if (!user?._id) {
+      console.log('No user ID found');
+      return null;
+    }
+    const photoUrl = `/assets/images/profilePictures/${user._id}.jpeg`;
+    console.log('Profile Photo URL:', photoUrl);
+    return photoUrl;
+  };
 
   const menuItems: MenuItem[] = [
     {
@@ -91,11 +103,25 @@ export default function Profile() {
       </View>
 
       <View style={styles.userInfo}>
-        <View style={[styles.avatarContainer, { backgroundColor: theme.card }]}>
-          <Ionicons name="person" size={40} color={theme.primary} />
+        <View style={styles.profileImageContainer}>
+          {getProfilePhotoUrl() ? (
+            <Image
+              source={{ uri: getProfilePhotoUrl() || undefined }}
+              style={styles.profileImage}
+            />
+          ) : (
+            <View style={[styles.avatarContainer, { backgroundColor: theme.card }]}>
+              <Ionicons name="person" size={45} color={theme.primary} />
+            </View>
+          )}
+          <TouchableOpacity 
+            style={[styles.editButton, { backgroundColor: theme.primary }]}
+            onPress={() => router.push('/editProfile')}
+          >
+            <Ionicons name="pencil" size={15} color="white" />
+          </TouchableOpacity>
         </View>
-        <Text style={[styles.userName, { color: theme.text }]}>{user.name || user.email}</Text>
-        <Text style={[styles.userEmail, { color: theme.text + '99' }]}>{user.email}</Text>
+        <Text style={[styles.userName, { color: theme.text }]}>{user?.name || user?.email}</Text>
       </View>
 
       <View style={styles.menuContainer}>
@@ -146,21 +172,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
   },
+  profileImageContainer: {
+    position: 'relative',
+    marginBottom: 20,
+  },
+  profileImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+  },
   avatarContainer: {
     width: 80,
     height: 80,
     borderRadius: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+  },
+  editButton: {
+    position: 'absolute',
+    right: -1,
+    top: -1,
+    width: 25,
+    height: 25,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    opacity:  0.9
   },
   userName: {
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 4,
-  },
-  userEmail: {
-    fontSize: 16,
   },
   menuContainer: {
     padding: 16,

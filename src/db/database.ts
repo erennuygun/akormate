@@ -31,6 +31,15 @@ interface PrivateSong extends Song {
   isPrivate: boolean;
 }
 
+// Repertuvar türleri
+export interface RepertoireType {
+  _id: string;
+  name: string;
+  userId: string;
+  songs: Song[];
+  created_at: string;
+}
+
 export const initDatabase = async () => {
   try {
     const response = await api.get('/health');
@@ -58,7 +67,7 @@ export const getSongs = async (search?: string, options: { tag?: string; random?
     if (options.tag) params.append('tag', options.tag);
     if (options.random) params.append('random', 'true');
 
-    const response = await api.get(`/songs?${params.toString()}`);
+    const response = await api.get(`songs?${params.toString()}`);
     return response.data;
   } catch (error) {
     console.error('Error fetching songs:', error);
@@ -224,22 +233,83 @@ export const getFavorites = async () => {
   }
 };
 
-export const createRepertoire = async (userId: string, name: string) => {
+export const createRepertoire = async (name: string, songIds: string[]) => {
   try {
-    const response = await api.post('/repertoires', { userId, name });
+    console.log('Repertuvar oluşturma isteği başlatılıyor...');
+    console.log('İstek verileri:', { name, songIds });
+    
+    // Kullanıcı ID'sini al
+    const userId = await AsyncStorage.getItem('userId');
+    if (!userId) {
+      throw new Error('Kullanıcı girişi yapılmamış');
+    }
+
+    const response = await api.post('/repertoires', {
+      userId,
+      name: name,
+      songIds: songIds
+    });
+    
+    console.log('API Yanıtı:', response);
     return response.data;
-  } catch (error) {
-    console.error('Repertuar oluşturulurken hata:', error);
+  } catch (error: any) {
+    console.error('Repertuvar oluşturulurken hata detayı:', {
+      message: error.message,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      url: error.config?.url,
+      method: error.config?.method,
+      headers: error.config?.headers,
+      data: error.response?.data
+    });
     throw error;
   }
 };
 
-export const getUserRepertoires = async (userId: string) => {
+export const getRepertoires = async () => {
   try {
+    console.log('Repertuvar getirme isteği başlatılıyor...');
+    
+    // Kullanıcı ID'sini al
+    const userId = await AsyncStorage.getItem('userId');
+    if (!userId) {
+      throw new Error('Kullanıcı girişi yapılmamış');
+    }
+    
     const response = await api.get(`/repertoires/user/${userId}`);
+    
+    console.log('API Yanıtı:', response);
+    return response.data;
+  } catch (error: any) {
+    console.error('Repertuvarlar getirilirken hata detayı:', {
+      message: error.message,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      url: error.config?.url,
+      method: error.config?.method,
+      headers: error.config?.headers,
+      data: error.response?.data
+    });
+    throw error;
+  }
+};
+
+export const updateRepertoire = async (id: string, data: { name?: string; songs?: Song[] }) => {
+  try {
+    const response = await api.put(`/repertoires/${id}`, data);
     return response.data;
   } catch (error) {
-    console.error('Kullanıcı repertuarları getirilirken hata:', error);
+    console.error('Repertuar güncellenirken hata:', error);
+    throw error;
+  }
+};
+
+export const deleteRepertoire = async (id: string) => {
+  try {
+    const response = await api.delete(`/repertoires/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error('Repertuar silinirken hata:', error);
     throw error;
   }
 };
@@ -304,5 +374,38 @@ export const getRandomArtists = async (): Promise<Song[]> => {
   } catch (error) {
     console.error('Error fetching random artists:', error);
     return [];
+  }
+};
+
+// Repertuvar oluşturma
+export const createRepertoireNew = async (name: string, songs: Song[]) => {
+  try {
+    const response = await api.post('/repertoires', { name, songs });
+    return response.data;
+  } catch (error) {
+    console.error('Repertuvar oluşturulurken hata:', error);
+    throw error;
+  }
+};
+
+// Repertuar detaylarını getir
+export const getRepertoireDetails = async (id: string) => {
+  try {
+    const response = await api.get(`/repertoires/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error('Repertuar detayları alınırken hata:', error);
+    throw error;
+  }
+};
+
+// Kullanıcı profili güncelleme
+export const updateUserInDB = async (userId: string, data: { name?: string; photoData?: string }) => {
+  try {
+    const response = await api.put(`/users/${userId}`, data);
+    return response.data;
+  } catch (error) {
+    console.error('Kullanıcı güncellenirken hata:', error);
+    throw error;
   }
 };

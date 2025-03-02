@@ -63,11 +63,16 @@ export default function Home() {
     if (query.length === 0) {
       loadSongs();
     } else if (query.length >= 2) {
-      loadSongs(query);
+      // Tüm şarkılarda arama yapmak için tag ve random opsiyonlarını kaldırıyoruz
+      const data = await getSongs(query, {});
+      setSongs(data);
     }
   };
 
   const handleTabPress = (tab: TabType) => {
+    if (tab === activeTab && tab === 'random') {
+      loadSongs();
+    }
     setActiveTab(tab);
   };
 
@@ -201,7 +206,13 @@ export default function Home() {
       <View style={[styles.bottomNav, { backgroundColor: theme.background }]}>
         <TouchableOpacity 
           style={styles.navButton}
-          onPress={() => router.push('/favorites')}
+          onPress={() => {
+            if (!user) {
+              router.push('/auth/login');
+            } else {
+              router.push('/favorites');
+            }
+          }}
         >
           <Ionicons name="heart-outline" size={24} color={theme.text} />
         </TouchableOpacity>
@@ -215,7 +226,13 @@ export default function Home() {
 
         <TouchableOpacity 
           style={styles.navButton}
-          onPress={() => router.push('/profile')}
+          onPress={() => {
+            if (!user) {
+              router.push('/auth/login');
+            } else {
+              router.push('/profile');
+            }
+          }}
         >
           <Ionicons name="person-outline" size={24} color={theme.text} />
         </TouchableOpacity>
