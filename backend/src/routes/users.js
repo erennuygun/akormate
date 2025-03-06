@@ -3,6 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const auth = require('../middleware/auth');
 const fs = require('fs');
 const path = require('path');
 
@@ -53,7 +54,15 @@ router.post('/login', async (req, res) => {
     }
 
     const token = await user.generateAuthToken();
-    res.json({ user, token });
+    
+    // Hassas bilgileri çıkar ve kullanıcı bilgilerini gönder
+    const userObject = user.toObject();
+    delete userObject.password;
+    
+    res.json({
+      user: userObject,
+      token
+    });
   } catch (error) {
     console.error('Kullanıcı girişi sırasında hata:', error);
     res.status(500).json({ message: 'Kullanıcı girişi sırasında hata' });
@@ -61,82 +70,15 @@ router.post('/login', async (req, res) => {
 });
 
 // Çıkış yap
-router.post('/logout', async (req, res) => {
+router.post('/logout', auth, async (req, res) => {
   try {
-    const token = req.header('Authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return res.status(401).json({ message: 'Token bulunamadı' });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
-    const user = await User.findById(decoded.userId);
-    if (!user) {
-      return res.status(404).json({ message: 'Kullanıcı bulunamadı' });
-    }
-
-    await user.removeToken(token);
+    await req.user.removeToken();
     res.json({ message: 'Başarıyla çıkış yapıldı' });
   } catch (error) {
     console.error('Çıkış yaparken hata:', error);
     res.status(500).json({ message: 'Çıkış yaparken hata' });
   }
 });
-
-// Token kontrolü middleware
-const auth = async (req, res, next) => {
-  try {
-    // Authorization header'ını kontrol et
-    const authHeader = req.header('Authorization');
-    if (!authHeader) {
-      console.error('Authorization header bulunamadı');
-      return res.status(401).json({ message: 'Token bulunamadı' });
-    }
-
-    // Token'ı ayıkla
-    const token = authHeader.replace('Bearer ', '');
-    if (!token) {
-      console.error('Token boş');
-      return res.status(401).json({ message: 'Geçersiz token formatı' });
-    }
-
-    // Token'ı doğrula
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (!decoded || !decoded.userId) {
-      console.error('Token doğrulanamadı veya userId bulunamadı');
-      return res.status(401).json({ message: 'Geçersiz token' });
-    }
-
-    // Kullanıcıyı bul
-    const user = await User.findOne({
-      _id: decoded.userId,
-      'tokens.token': token
-    });
-
-    if (!user) {
-      console.error('Token ile kullanıcı bulunamadı. UserId:', decoded.userId);
-      return res.status(401).json({ message: 'Kullanıcı bulunamadı' });
-    }
-
-    // Token'ın süresi dolmuş mu kontrol et
-    const tokenDoc = user.tokens.find(t => t.token === token);
-    if (!tokenDoc) {
-      console.error('Token kullanıcının token listesinde bulunamadı');
-      return res.status(401).json({ message: 'Token geçersiz' });
-    }
-
-    req.token = token;
-    req.user = user;
-    next();
-  } catch (error) {
-    console.error('Token kontrolü sırasında hata:', error);
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ message: 'Geçersiz token formatı' });
-    } else if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ message: 'Token süresi dolmuş' });
-    }
-    res.status(401).json({ message: 'Lütfen tekrar giriş yapın' });
-  }
-};
 
 // Favorilere şarkı ekle
 router.post('/:userId/favorites', auth, async (req, res) => {
@@ -315,6 +257,121 @@ router.put('/:id', auth, async (req, res) => {
   } catch (error) {
     console.error('Profil güncellenirken hata:', error);
     res.status(500).json({ message: error.message });
+  }
+});
+
+// Repertuar oluşturma
+router.post('/repertoires', auth, async (req, res) => {
+  try {
+    const { name, songIds } = req.body;
+    const user = req.user;
+
+    if (!name || !songIds || !Array.isArray(songIds)) {
+      return res.status(400).json({ message: 'Geçersiz istek verileri' });
+    }
+
+    const newRepertoire = {
+      name,
+      songs: songIds
+    };
+
+    if (!user.repertoires) {
+      user.repertoires = [];
+    }
+    user.repertoires.push(newRepertoire);
+
+    try {
+      const savedUser = await user.save();
+      const addedRepertoire = savedUser.repertoires[savedUser.repertoires.length - 1];
+      
+      await User.populate(savedUser, {
+        path: 'repertoires.songs',
+        model: 'Song'
+      });
+      
+      res.status(201).json(addedRepertoire);
+    } catch (saveError) {
+      throw saveError;
+    }
+  } catch (error) {
+    res.status(500).json({ message: 'Repertuar oluşturulurken hata oluştu' });
+  }
+});
+
+// Repertuar detaylarını getir
+router.get('/repertoires/:id', auth, async (req, res) => {
+  try {
+    const user = req.user;
+    const repertoire = user.repertoires.id(req.params.id);
+    
+    if (!repertoire) {
+      return res.status(404).json({ message: 'Repertuar bulunamadı' });
+    }
+
+    // Şarkı detaylarını populate et
+    await user.populate('repertoires.songs');
+    
+    res.json(repertoire);
+  } catch (error) {
+    console.error('Repertuar detayları alınırken hata:', error);
+    res.status(500).json({ message: 'Repertuar detayları alınırken hata oluştu' });
+  }
+});
+
+// Repertuar güncelleme
+router.put('/repertoires/:id', auth, async (req, res) => {
+  try {
+    const user = req.user;
+    const repertoire = user.repertoires.id(req.params.id);
+    
+    if (!repertoire) {
+      return res.status(404).json({ message: 'Repertuar bulunamadı' });
+    }
+
+    // Gelen verileri güncelle
+    if (req.body.name) repertoire.name = req.body.name;
+    if (req.body.songs) repertoire.songs = req.body.songs.map(song => song._id);
+
+    await user.save();
+    res.json(repertoire);
+  } catch (error) {
+    console.error('Repertuar güncellenirken hata:', error);
+    res.status(500).json({ message: 'Repertuar güncellenirken hata oluştu' });
+  }
+});
+
+// Repertuar silme
+router.delete('/repertoires/:id', auth, async (req, res) => {
+  try {
+    const user = req.user;
+    const repertoireIndex = user.repertoires.findIndex(r => r._id.toString() === req.params.id);
+    
+    if (repertoireIndex === -1) {
+      return res.status(404).json({ message: 'Repertuar bulunamadı' });
+    }
+
+    user.repertoires.splice(repertoireIndex, 1);
+    await user.save();
+    
+    res.json({ message: 'Repertuar başarıyla silindi' });
+  } catch (error) {
+    console.error('Repertuar silinirken hata:', error);
+    res.status(500).json({ message: 'Repertuar silinirken hata oluştu' });
+  }
+});
+
+// Kullanıcının tüm repertuarlarını getir
+router.get('/repertoires', auth, async (req, res) => {
+  try {
+    const user = req.user;
+    
+    // Şarkı detaylarını populate et
+    await user.populate('repertoires.songs');
+    
+    res.json(user.repertoires);
+  } catch (error) {
+    console.error('Repertuarlar getirilirken hata:', error);
+    res.status(500).json({ message: 'Repertuarlar getirilirken hata oluştu' });
   }
 });
 

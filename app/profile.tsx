@@ -10,11 +10,12 @@ import {
   Alert,
   Image,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useColorScheme } from 'react-native';
 import { lightTheme, darkTheme } from '../src/theme/colors';
 import { useAuth } from '../src/context/AuthContext';
-import { useColorScheme } from 'react-native';
+import BottomNavigation from '../components/BottomNavigation';
 
 interface MenuItem {
   id: string;
@@ -29,6 +30,7 @@ export default function Profile() {
   const theme = isDarkMode ? darkTheme : lightTheme;
   const { user, signOut } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   const menuItems: MenuItem[] = [
     {
@@ -51,6 +53,13 @@ export default function Profile() {
       icon: 'musical-notes',
       route: 'private-songs',
       description: 'Sadece size özel şarkılarınız',
+    },
+    {
+      id: '4',
+      title: 'İndirilenler',
+      icon: 'cloud-offline',
+      route: 'downloads',
+      description: 'Çevrimdışı görüntülemek için indirdiğiniz şarkılar',
     },
   ];
 
@@ -81,12 +90,6 @@ export default function Profile() {
   };
 
   if (!user) return null;
-
-  console.log('Profile render - user data:', {
-    photoURL: user.photoURL,
-    name: user.name,
-    email: user.email
-  });
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
@@ -148,6 +151,7 @@ export default function Profile() {
           </TouchableOpacity>
         ))}
       </View>
+      <BottomNavigation currentRoute={pathname} />
     </SafeAreaView>
   );
 }

@@ -3,18 +3,19 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   TouchableOpacity,
-  ActivityIndicator,
+  SafeAreaView,
   Platform,
   StatusBar,
+  useColorScheme,
+  ActivityIndicator,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { lightTheme, darkTheme } from '../src/theme/colors';
 import { getArtists } from '../src/db/database';
-import { useColorScheme } from 'react-native';
+import BottomNavigation, { BOTTOM_NAV_HEIGHT } from '../components/BottomNavigation';
 
 export default function Artists() {
   const isDarkMode = useColorScheme() === 'dark';
@@ -22,6 +23,7 @@ export default function Artists() {
   const [artists, setArtists] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     loadArtists();
@@ -85,6 +87,7 @@ export default function Artists() {
           contentContainerStyle={styles.listContent}
         />
       )}
+      <BottomNavigation currentRoute={pathname} />
     </SafeAreaView>
   );
 }
@@ -125,7 +128,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   listContent: {
-    padding: 16,
+    paddingHorizontal: 15,
+    paddingBottom: BOTTOM_NAV_HEIGHT + 10,
   },
   artistItem: {
     flexDirection: 'row',

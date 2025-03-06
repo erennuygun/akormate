@@ -10,11 +10,12 @@ import {
   Platform,
   StatusBar,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { lightTheme, darkTheme } from '../src/theme/colors';
 import { getArtistSongs } from '../src/db/database';
 import { useColorScheme } from 'react-native';
+import BottomNavigation, { BOTTOM_NAV_HEIGHT } from '../components/BottomNavigation';
 
 interface Song {
   id: string;
@@ -25,6 +26,7 @@ interface Song {
 
 export default function ArtistSongs() {
   const { artist } = useLocalSearchParams();
+  const pathname = usePathname();
   const isDarkMode = useColorScheme() === 'dark';
   const theme = isDarkMode ? darkTheme : lightTheme;
   const [songs, setSongs] = useState<Song[]>([]);
@@ -98,6 +100,7 @@ export default function ArtistSongs() {
           contentContainerStyle={styles.listContent}
         />
       )}
+      <BottomNavigation currentRoute={pathname} />
     </SafeAreaView>
   );
 }
@@ -138,7 +141,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   listContent: {
-    padding: 16,
+    paddingHorizontal: 15,
+    paddingBottom: BOTTOM_NAV_HEIGHT + 10,
   },
   songItem: {
     flexDirection: 'row',

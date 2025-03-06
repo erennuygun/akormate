@@ -56,23 +56,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (userData: any) => {
     try {
-      // En son oluşturulan token'ı al
-      const latestToken = userData.tokens && userData.tokens.length > 0 
-        ? userData.tokens[userData.tokens.length - 1].token 
-        : null;
-
-      if (!latestToken) {
+      // Token kontrolü
+      const token = userData.token;
+      
+      if (!token) {
         throw new Error('Token bulunamadı');
       }
 
       // Token'ı user nesnesine ekle
       const userWithToken = {
         ...userData,
-        token: latestToken
+        token
       };
 
       // Token'ı ayrı olarak sakla
-      await AsyncStorage.setItem('token', latestToken);
+      await AsyncStorage.setItem('token', token);
       await AsyncStorage.setItem('user', JSON.stringify(userWithToken));
       setUser(userWithToken);
       router.replace('/chords'); // Akorlar sayfasına yönlendir

@@ -22,6 +22,7 @@ import { useColorScheme } from 'react-native';
 import { lightTheme, darkTheme } from '../src/theme/colors';
 import { getRepertoires, createRepertoire, getSongs, deleteRepertoire } from '../src/db/database';
 import { useAuth } from '../src/context/AuthContext';
+import BottomNavigation, { BOTTOM_NAV_HEIGHT } from '../components/BottomNavigation';
 
 interface Song {
   _id: string;
@@ -65,13 +66,13 @@ export default function Repertoires() {
 
   const loadRepertoires = async () => {
     try {
-      console.log('Repertuvarlar yüklenmeye başlıyor...');
+ 
       setLoading(true);
       const data = await getRepertoires();
-      console.log('Alınan repertuvar verileri:', data);
+   
       setRepertoires(data);
     } catch (error) {
-      console.error('Repertuvarlar yüklenirken hata:', error);
+
     } finally {
       setLoading(false);
     }
@@ -108,14 +109,12 @@ export default function Repertoires() {
     }
 
     try {
-      console.log('Yeni repertuvar oluşturuluyor...');
-      console.log('Seçilen şarkılar:', selectedSongs);
-      
+  
+    
       const songIds = selectedSongs.map(song => song._id);
-      console.log('Şarkı ID listesi:', songIds);
-      
+    
       await createRepertoire(newRepertoireName.trim(), songIds);
-      console.log('Repertuvar başarıyla oluşturuldu');
+ 
       
       setModalVisible(false);
       setNewRepertoireName('');
@@ -344,6 +343,7 @@ export default function Repertoires() {
           </SafeAreaView>
         </KeyboardAvoidingView>
       </Modal>
+      <BottomNavigation currentRoute={pathname} />
     </SafeAreaView>
   );
 }
@@ -365,7 +365,7 @@ const styles = StyleSheet.create({
   },
   addButton: {
     position: 'absolute',
-    bottom: 70,
+    bottom: 150,
     alignSelf: 'center',
     width: 56,
     height: 56,
@@ -396,7 +396,8 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   listContent: {
-    padding: 16,
+    paddingHorizontal: 15,
+    paddingBottom: BOTTOM_NAV_HEIGHT + 10,
   },
   repertoireCard: {
     flexDirection: 'row',

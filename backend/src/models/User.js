@@ -1,6 +1,22 @@
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken'); // jwt modülünü ekledik
 
+const repertoireSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true
+  },
+  songs: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Song',
+    required: true
+  }],
+  created_at: {
+    type: Date,
+    default: Date.now
+  }
+});
+
 const userSchema = new mongoose.Schema({
   email: {
     type: String,
@@ -18,28 +34,22 @@ const userSchema = new mongoose.Schema({
   photoURL: {
     type: String
   },
-  tokens: [{
-    token: {
-      type: String,
-      required: true
-    },
-    createdAt: {
-      type: Date,
-      default: Date.now,
-      expires: 24 * 60 * 60 // Token 24 saat sonra otomatik silinir
-    }
-  }],
+  token: {
+    type: String,
+    default: null
+  },
+  tokenExpires: {
+    type: Date,
+    default: null
+  },
   favorites: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Song'
   }],
-  repertoires: [{
-    name: String,
-    songs: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Song'
-    }]
-  }],
+  repertoires: {
+    type: [repertoireSchema],
+    default: []
+  },
   privateSongs: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Song'
@@ -59,21 +69,19 @@ userSchema.methods.generateAuthToken = async function() {
     { expiresIn: '24h' }
   );
 
-  // Yeni token'ı tokens dizisine ekle
-  user.tokens = user.tokens || [];
-  user.tokens.push({
-    token,
-    createdAt: new Date()
-  });
-
+  // Önceki tüm tokenleri temizle
+  user.token = token;
+  user.tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  
   await user.save();
   return token;
 };
 
 // Token silmek için metod
-userSchema.methods.removeToken = async function(token) {
+userSchema.methods.removeToken = async function() {
   const user = this;
-  user.tokens = user.tokens.filter(t => t.token !== token);
+  user.token = null;
+  user.tokenExpires = null;
   await user.save();
 };
 

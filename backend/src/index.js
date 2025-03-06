@@ -38,7 +38,6 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://0.0.0.0:27017/akormate', 
 app.use('/api/users', require('./routes/users'));
 app.use('/api/songs', require('./routes/songs'));
 app.use('/api/favorites', require('./routes/favorites'));
-app.use('/api/repertoires', require('./routes/repertoires'));
 
 const PORT = process.env.PORT || 5000;
 const HOST = '0.0.0.0';

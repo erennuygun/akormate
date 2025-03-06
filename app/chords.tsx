@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { lightTheme, darkTheme } from '../src/theme/colors';
 import { getSongs, getRandomArtists } from '../src/db/database';
 import { useAuth } from '../src/context/AuthContext';
+import BottomNavigation from '../components/BottomNavigation';
 
 interface Song {
   _id: string;  
@@ -33,6 +34,7 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('popular');
   const isDarkMode = useColorScheme() === 'dark';
   const theme = isDarkMode ? darkTheme : lightTheme;
@@ -42,9 +44,11 @@ export default function Home() {
     loadSongs();
   }, [activeTab]);
 
-  const loadSongs = async (search?: string) => {
+  const loadSongs = async (search?: string, isRefreshing = false) => {
     try {
-      setLoading(true);
+      if (!isRefreshing) {
+        setLoading(true);
+      }
       const options = {
         tag: activeTab === 'random' ? undefined : activeTab,
         random: activeTab === 'random'
@@ -55,17 +59,40 @@ export default function Home() {
       console.error('Şarkıları getirirken hata:', error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
+
+  const handleRefresh = React.useCallback(() => {
+    if (activeTab === 'random') {
+      setRefreshing(true);
+      loadSongs(undefined, true);
+    }
+  }, [activeTab]);
 
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
     if (query.length === 0) {
       loadSongs();
     } else if (query.length >= 2) {
-      // Tüm şarkılarda arama yapmak için tag ve random opsiyonlarını kaldırıyoruz
-      const data = await getSongs(query, {});
-      setSongs(data);
+      if (activeTab === 'artists') {
+        // Sanatçılarda arama yap
+        const data = await getRandomArtists(query);
+        setSongs(data.map(artist => ({
+          _id: artist,
+          title: artist,
+          artist: '',
+          originalKey: 'artist'
+        })));
+      } else {
+        // Diğer sekmelerde normal arama yap
+        const options = {
+          tag: activeTab === 'random' ? undefined : activeTab,
+          random: activeTab === 'random'
+        };
+        const data = await getSongs(query, options);
+        setSongs(data);
+      }
     }
   };
 
@@ -74,6 +101,12 @@ export default function Home() {
       loadSongs();
     }
     setActiveTab(tab);
+  };
+
+  const handleEndReached = () => {
+    if (activeTab === 'random' && !loading) {
+      loadSongs();
+    }
   };
 
   const filteredSongs = songs.filter(song =>
@@ -143,7 +176,22 @@ export default function Home() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.text }]}>Akor Mate</Text>
+        <Text>
+          <Text style={[styles.title, { color: theme.text }]}>Akor Mate </Text>
+          <Text style={[styles.title, { color: '#FFFFFF' }]}> 🎶</Text>
+        </Text>
+        <TouchableOpacity 
+          style={styles.favoritesButton}
+          onPress={() => {
+            if (!user) {
+              router.push('/auth/login');
+            } else {
+              router.push('/favorites');
+            }
+          }}
+        >
+          <Ionicons name="heart-outline" size={24} color={theme.text} />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.searchContainer}>
@@ -200,43 +248,13 @@ export default function Home() {
           keyExtractor={(item) => item._id}
           style={styles.list}
           contentContainerStyle={styles.listContent}
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          progressViewOffset={120}
+          windowSize={21}
         />
       )}
-
-      <View style={[styles.bottomNav, { backgroundColor: theme.background }]}>
-        <TouchableOpacity 
-          style={styles.navButton}
-          onPress={() => {
-            if (!user) {
-              router.push('/auth/login');
-            } else {
-              router.push('/favorites');
-            }
-          }}
-        >
-          <Ionicons name="heart-outline" size={24} color={theme.text} />
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={[styles.homeButton, { backgroundColor: theme.primary }]}
-          onPress={() => router.replace('/')}
-        >
-          <Ionicons name="home" size={30} color="#FFF" />
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.navButton}
-          onPress={() => {
-            if (!user) {
-              router.push('/auth/login');
-            } else {
-              router.push('/profile');
-            }
-          }}
-        >
-          <Ionicons name="person-outline" size={24} color={theme.text} />
-        </TouchableOpacity>
-      </View>
+      <BottomNavigation currentRoute="/chords" />
     </SafeAreaView>
   );
 }
@@ -261,9 +279,7 @@ interface Styles {
   keyBadge: ViewStyle;
   keyText: TextStyle;
   arrowIcon: ViewStyle;
-  bottomNav: ViewStyle;
-  navButton: ViewStyle;
-  homeButton: ViewStyle;
+  favoritesButton: ViewStyle;
 }
 
 const styles = StyleSheet.create<Styles>({
@@ -273,6 +289,9 @@ const styles = StyleSheet.create<Styles>({
   header: {
     alignItems: 'center',
     paddingVertical: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
   },
   title: {
     fontSize: 24,
@@ -311,8 +330,8 @@ const styles = StyleSheet.create<Styles>({
     fontWeight: '500',
   },
   listContent: {
-    padding: 12,
-    paddingBottom: 24,
+    paddingHorizontal: 15,
+    paddingBottom: 70,
   },
   songItem: {
     padding: 20,
@@ -359,36 +378,8 @@ const styles = StyleSheet.create<Styles>({
   arrowIcon: {
     marginLeft: 4,
   },
-  bottomNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingBottom: Platform.OS === 'ios' ? 25 : 10,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
-  navButton: {
-    padding: 10,
-  },
-  homeButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Platform.OS === 'ios' ? 20 : 0,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+  favoritesButton: {
+    padding: 8,
+    marginLeft: 'auto',
   },
 });

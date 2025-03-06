@@ -11,13 +11,14 @@ import {
   ActivityIndicator,
   Animated,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { lightTheme, darkTheme } from '../src/theme/colors';
-import { getFavorites, removeFromFavorites } from '../src/db/database';
-import { useAuth } from '../src/context/AuthContext';
 import { useColorScheme } from 'react-native';
+import { lightTheme, darkTheme } from '../src/theme/colors';
+import { useAuth } from '../src/context/AuthContext';
+import { getFavorites, removeFromFavorites } from '../src/db/database';
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
+import BottomNavigation, { BOTTOM_NAV_HEIGHT } from '../components/BottomNavigation';
 
 interface FavoriteSong {
   id: string;
@@ -33,6 +34,7 @@ export default function Favorites() {
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     loadFavorites();
@@ -154,6 +156,7 @@ export default function Favorites() {
             contentContainerStyle={styles.listContent}
           />
         )}
+        <BottomNavigation currentRoute={pathname} />
       </SafeAreaView>
     </GestureHandlerRootView>
   );
@@ -197,7 +200,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   listContent: {
-    padding: 16,
+    paddingHorizontal: 15,
+    paddingBottom: BOTTOM_NAV_HEIGHT + 10,
   },
   songItem: {
     flexDirection: 'row',

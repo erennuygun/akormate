@@ -13,7 +13,7 @@ import {
   Keyboard,
   ActivityIndicator,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from 'react-native';
 import { lightTheme, darkTheme } from '../src/theme/colors';
@@ -21,12 +21,14 @@ import { useAuth } from '../src/context/AuthContext';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import api from '../src/config/api';
+import BottomNavigation from '../components/BottomNavigation';
 
 export default function EditProfile() {
   const { user, updateUserProfile } = useAuth();
   const isDarkMode = useColorScheme() === 'dark';
   const theme = isDarkMode ? darkTheme : lightTheme;
   const router = useRouter();
+  const pathname = usePathname();
 
   const [displayName, setDisplayName] = useState(user?.name || '');
   const [photoURL, setPhotoURL] = useState(user?.photoURL || '');
@@ -53,8 +55,6 @@ export default function EditProfile() {
         aspect: [1, 1],
         quality: 1,
       });
-
-      console.log('Seçilen fotoğraf:', result);
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         // Fotoğrafı küçült
@@ -184,6 +184,7 @@ export default function EditProfile() {
           </View>
         </View>
       </TouchableWithoutFeedback>
+      <BottomNavigation currentRoute={pathname} />
     </SafeAreaView>
   );
 }

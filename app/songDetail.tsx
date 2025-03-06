@@ -13,12 +13,16 @@ import {
   Share,
   Modal
 } from 'react-native';
-import { useLocalSearchParams, router } from 'expo-router';
+import {
+  useLocalSearchParams, router
+} from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { lightTheme, darkTheme } from '../src/theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../src/context/AuthContext';
-import { addToFavorites, removeFromFavorites, checkIsFavorite } from '../src/db/database';
+import { addToFavorites, removeFromFavorites, checkIsFavorite, getRepertoires, addSongToRepertoire, updateRepertoire } from '../src/db/database';
+import { useRouter, usePathname } from 'expo-router';
+import BottomNavigation from '../components/BottomNavigation';
 
 const LyricLine = ({ line, theme, fontSize }) => {
   const isChordLine = /^([A-G][#b]?m?(aj)?[0-9]*\s*)+$/.test(line.trim());
@@ -58,6 +62,7 @@ const transposeLine = (line, semitones) => {
 export default function SongDetail() {
   const params = useLocalSearchParams();
   const song = params.song ? JSON.parse(params.song) : null;
+  const pathname = usePathname();
   
   // Eğer song verisi yoksa loading veya error state göster
   if (!song) {
@@ -83,6 +88,12 @@ export default function SongDetail() {
   const { height: windowHeight } = Dimensions.get('window');
   const [contentHeight, setContentHeight] = useState(0);
   const [scrollViewHeight, setScrollViewHeight] = useState(0);
+  const [showFavoriteModal, setShowFavoriteModal] = useState(false);
+  const [showRepertoireModal, setShowRepertoireModal] = useState(false);
+  const [repertoires, setRepertoires] = useState([]);
+  const [selectedRepertoires, setSelectedRepertoires] = useState([]);
+  const [selectedRepertoireNames, setSelectedRepertoireNames] = useState([]);
+  const [isOfflineEnabled, setIsOfflineEnabled] = useState(false);
 
   // Otomatik scroll'u temizle
   useEffect(() => {
@@ -168,8 +179,21 @@ export default function SongDetail() {
   useEffect(() => {
     if (song?._id) {
       checkFavorite();
+      loadRepertoires();
     }
   }, [song]);
+
+  const loadRepertoires = async () => {
+    try {
+      const userRepertoires = await getRepertoires();
+      if (userRepertoires) {
+        setRepertoires(userRepertoires);
+      }
+    } catch (error) {
+      console.error('Error loading repertoires:', error);
+      Alert.alert('Hata', 'Repertuarlar yüklenirken bir hata oluştu');
+    }
+  };
 
   const checkFavorite = async () => {
     try {
@@ -201,6 +225,7 @@ export default function SongDetail() {
       } else {
         await addToFavorites(song._id);
         setIsFavorite(true);
+        setShowFavoriteModal(true);
       }
     } catch (error) {
       Alert.alert(
@@ -233,6 +258,101 @@ export default function SongDetail() {
     transposeLine(line, getSemitones())
   );
 
+  const handleRepertoireSelect = (repertoireId) => {
+    setSelectedRepertoires(prev => {
+      if (prev.includes(repertoireId)) {
+        return prev.filter(id => id !== repertoireId);
+      } else {
+        return [...prev, repertoireId];
+      }
+    });
+  };
+
+  const handleRepertoireConfirm = async () => {
+    try {
+      // Save selected repertoire names for display
+      const selectedNames = repertoires
+        .filter(rep => selectedRepertoires.includes(rep._id))
+        .map(rep => rep.name);
+      setSelectedRepertoireNames(selectedNames);
+      
+      // Directly switch modals without showing alert
+      setShowRepertoireModal(false);
+      setShowFavoriteModal(true);
+    } catch (error) {
+      console.error('Error saving to repertoire:', error);
+      Alert.alert('Hata', 'Repertuara eklenirken bir hata oluştu');
+    }
+  };
+
+  const saveToRepertoires = async () => {
+    try {
+      // Check for duplicate songs in selected repertoires
+      const duplicateRepertoires = [];
+      for (const repId of selectedRepertoires) {
+        const repertoire = repertoires.find(r => r._id === repId);
+        if (repertoire) {
+          // Check if song already exists in this repertoire
+          const songExists = repertoire.songs.some(s => s._id === song._id);
+          if (songExists) {
+            duplicateRepertoires.push(repertoire.name);
+          }
+        }
+      }
+
+      // If there are duplicates, show warning and return
+      if (duplicateRepertoires.length > 0) {
+        Alert.alert(
+          'Uyarı',
+          `Bu şarkı zaten ${duplicateRepertoires.join(', ')} repertuar${duplicateRepertoires.length > 1 ? 'larınızda' : 'ınızda'} mevcut.`
+        );
+        return;
+      }
+
+      // Add song to selected repertoires in the database one by one
+      for (const repId of selectedRepertoires) {
+        const repertoire = repertoires.find(r => r._id === repId);
+        if (repertoire) {
+          const updatedSongs = [...repertoire.songs, song];
+          await updateRepertoire(repId, {
+            songs: updatedSongs
+          });
+        }
+      }
+      
+      Alert.alert('Başarılı', 'Şarkı repertuarlara kaydedildi');
+      setShowFavoriteModal(false);
+    } catch (error) {
+      console.error('Error saving to repertoires:', error);
+      Alert.alert('Hata', 'Repertuarlara kaydedilirken bir hata oluştu');
+    }
+  };
+
+  const handleOfflineToggle = async () => {
+    try {
+      const newValue = !isOfflineEnabled;
+      setIsOfflineEnabled(newValue);
+      
+      if (newValue) {
+        // Save song for offline use
+        const offlineSongs = JSON.parse(await AsyncStorage.getItem('offline_songs') || '[]');
+        if (!offlineSongs.find(s => s._id === song._id)) {
+          offlineSongs.push(song);
+          await AsyncStorage.setItem('offline_songs', JSON.stringify(offlineSongs));
+          Alert.alert('Başarılı', 'Şarkı Profildeki İndirilenlere sayfasına eklendi');
+        }
+      } else {
+        // Remove song from offline storage
+        const offlineSongs = JSON.parse(await AsyncStorage.getItem('offline_songs') || '[]');
+        const updatedSongs = offlineSongs.filter(s => s._id !== song._id);
+        await AsyncStorage.setItem('offline_songs', JSON.stringify(updatedSongs));
+      }
+    } catch (error) {
+      console.error('Error toggling offline mode:', error);
+      Alert.alert('Hata', 'Çevrimdışı mod ayarlanırken bir hata oluştu');
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={[styles.header, { backgroundColor: theme.card }]}>
@@ -240,18 +360,14 @@ export default function SongDetail() {
           <Ionicons name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>
-            {song.title}
-          </Text>
+          <Text style={[styles.title, { color: theme.text }]}> {song.title}</Text>
           <TouchableOpacity 
             onPress={() => router.push({
               pathname: '/artistSongs',
               params: { artist: song.artist }
             })}
           >
-            <Text style={[styles.artist, { color: theme.text + '99' }]} numberOfLines={1}>
-              {song.artist}
-            </Text>
+            <Text style={[styles.artist, { color: theme.text + '99' }]}>{song.artist}</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.headerButtons}>
@@ -334,7 +450,7 @@ export default function SongDetail() {
             <LyricLine 
               key={index}
               line={line}
-              theme={theme}
+              theme={isDarkMode ? darkTheme : lightTheme} 
               fontSize={fontSize}
             />
           ))}
@@ -428,6 +544,159 @@ export default function SongDetail() {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* Favorite Added Modal */}
+      <Modal
+        visible={showFavoriteModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowFavoriteModal(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowFavoriteModal(false)}
+        >
+          <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>
+              Şarkı favorilere eklendi
+            </Text>
+            
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: theme.primary }]}
+              onPress={() => {
+                setShowFavoriteModal(false);
+                setShowRepertoireModal(true);
+              }}
+            >
+              <Text style={[styles.modalButtonText, { color: theme.background }]}>
+                Repertuara Ekle
+              </Text>
+            </TouchableOpacity>
+
+            {selectedRepertoireNames.length > 0 && (
+              <View style={styles.selectedRepertoiresContainer}>
+                <Text style={[styles.selectedRepertoiresTitle, { color: theme.text }]}>
+                  Seçilen Repertuarlar:
+                </Text>
+                {selectedRepertoireNames.map((name, index) => (
+                  <Text key={index} style={[styles.selectedRepertoireName, { color: theme.text + '99' }]}>
+                    • {name}
+                  </Text>
+                ))}
+              </View>
+            )}
+
+            <View style={styles.offlineContainer}>
+              <TouchableOpacity 
+                style={styles.offlineContainer}
+                onPress={handleOfflineToggle}
+              >
+                <View style={[
+                  styles.customCheckbox,
+                  { borderColor: theme.text + '66' },
+                  isOfflineEnabled && { backgroundColor: theme.primary, borderColor: theme.primary }
+                ]}>
+                  {isOfflineEnabled && (
+                    <Ionicons name="checkmark" size={16} color={theme.background} />
+                  )}
+                </View>
+                <Text style={[styles.offlineText, { color: theme.text }]}>
+                  Çevrimdışı Görüntülemek için İndir
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: theme.card, borderColor: theme.primary, borderWidth: 1 }]}
+              onPress={() => {
+                if (selectedRepertoireNames.length > 0) {
+                  saveToRepertoires();
+                } else {
+                  setShowFavoriteModal(false);
+                }
+              }}
+            >
+              <Text style={[styles.modalButtonText, { color: theme.primary }]}>
+                {selectedRepertoireNames.length > 0 || isOfflineEnabled ? 'Kaydet' : 'Kapat'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Repertoire Selection Modal */}
+      <Modal
+        visible={showRepertoireModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowRepertoireModal(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowRepertoireModal(false)}
+        >
+          <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>
+              Repertuar Seçin
+            </Text>
+
+            {repertoires.length === 0 ? (
+              <View>
+                <Text style={[styles.modalText, { color: theme.text }]}>
+                  Henüz repertuarınız yok
+                </Text>
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: theme.primary }]}
+                  onPress={() => {
+                    setShowRepertoireModal(false);
+                    router.push('/repertoires');
+                  }}
+                >
+                  <Text style={[styles.modalButtonText, { color: theme.background }]}>
+                    Repertuar Ekle
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                <ScrollView style={styles.repertoireList}>
+                  {repertoires.map(repertoire => (
+                    <TouchableOpacity
+                      key={repertoire._id}
+                      style={[
+                        styles.repertoireItem,
+                        selectedRepertoires.includes(repertoire._id) && {
+                          backgroundColor: theme.primary + '20'
+                        }
+                      ]}
+                      onPress={() => handleRepertoireSelect(repertoire._id)}
+                    >
+                      <Text style={[styles.repertoireItemText, { color: theme.text }]}>
+                        {repertoire.name}
+                      </Text>
+                      {selectedRepertoires.includes(repertoire._id) && (
+                        <Ionicons name="checkmark" size={24} color={theme.primary} />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: theme.primary }]}
+                  onPress={handleRepertoireConfirm}
+                >
+                  <Text style={[styles.modalButtonText, { color: theme.background }]}>
+                    Tamam
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+      <BottomNavigation currentRoute={pathname} />
     </SafeAreaView>
   );
 }
@@ -551,40 +820,87 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 20,
   },
   modalContent: {
+    width: '90%',
     borderRadius: 12,
-    padding: 16,
-    width: '80%',
-    maxWidth: 300,
+    padding: 20,
+    alignItems: 'center',
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 16,
+    fontWeight: 'bold',
+    marginBottom: 20,
     textAlign: 'center',
   },
-  speedOption: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+  modalText: {
+    fontSize: 16,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  modalButton: {
+    width: '100%',
+    padding: 15,
     borderRadius: 8,
-    marginVertical: 4,
     alignItems: 'center',
+    marginVertical: 8,
   },
-  selectedSpeed: {
-    backgroundColor: 'rgba(0,0,0,0.1)',
+  modalButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
-  keyOption: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+  offlineContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 15,
+    padding: 8,
+  },
+  customCheckbox: {
+    width: 24,
+    height: 24,
+    borderWidth: 2,
+    borderRadius: 6,
+    marginRight: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  offlineText: {
+    fontSize: 16,
+  },
+  repertoireList: {
+    maxHeight: 300,
+    width: '100%',
+    marginBottom: 15,
+  },
+  repertoireItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 15,
     borderRadius: 8,
-    marginVertical: 2,
+    marginBottom: 8,
   },
-  keyOptionText: {
-    fontSize: 15,
-    textAlign: 'center',
+  repertoireItemText: {
+    fontSize: 16,
+  },
+  selectedRepertoiresContainer: {
+    width: '100%',
+    marginVertical: 15,
+    padding: 10,
+    backgroundColor: '#00000020', 
+    borderRadius: 8,
+  },
+  selectedRepertoiresTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  selectedRepertoireName: {
+    fontSize: 14,
+    marginVertical: 2,
   },
 });

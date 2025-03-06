@@ -112,7 +112,8 @@ export const loginUser = async (email: string, password: string): Promise<User> 
     // Convert MongoDB _id to id for consistency
     const userData = {
       ...user,
-      id: user._id
+      id: user._id,
+      token // Token'ı user nesnesine ekle
     };
     
     // Token'ı kaydet
@@ -235,50 +236,19 @@ export const getFavorites = async () => {
 
 export const createRepertoire = async (name: string, songIds: string[]) => {
   try {
-    console.log('Repertuvar oluşturma isteği başlatılıyor...');
-    console.log('İstek verileri:', { name, songIds });
-    
-    // Kullanıcı ID'sini al
-    const userId = await AsyncStorage.getItem('userId');
-    if (!userId) {
-      throw new Error('Kullanıcı girişi yapılmamış');
-    }
-
-    const response = await api.post('/repertoires', {
-      userId,
-      name: name,
-      songIds: songIds
+    const response = await api.post('/users/repertoires', {
+      name,
+      songIds
     });
-    
-    console.log('API Yanıtı:', response);
     return response.data;
   } catch (error: any) {
-    console.error('Repertuvar oluşturulurken hata detayı:', {
-      message: error.message,
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      url: error.config?.url,
-      method: error.config?.method,
-      headers: error.config?.headers,
-      data: error.response?.data
-    });
     throw error;
   }
 };
 
 export const getRepertoires = async () => {
   try {
-    console.log('Repertuvar getirme isteği başlatılıyor...');
-    
-    // Kullanıcı ID'sini al
-    const userId = await AsyncStorage.getItem('userId');
-    if (!userId) {
-      throw new Error('Kullanıcı girişi yapılmamış');
-    }
-    
-    const response = await api.get(`/repertoires/user/${userId}`);
-    
-    console.log('API Yanıtı:', response);
+    const response = await api.get('/users/repertoires');
     return response.data;
   } catch (error: any) {
     console.error('Repertuvarlar getirilirken hata detayı:', {
@@ -296,7 +266,7 @@ export const getRepertoires = async () => {
 
 export const updateRepertoire = async (id: string, data: { name?: string; songs?: Song[] }) => {
   try {
-    const response = await api.put(`/repertoires/${id}`, data);
+    const response = await api.put(`/users/repertoires/${id}`, data);
     return response.data;
   } catch (error) {
     console.error('Repertuar güncellenirken hata:', error);
@@ -306,7 +276,7 @@ export const updateRepertoire = async (id: string, data: { name?: string; songs?
 
 export const deleteRepertoire = async (id: string) => {
   try {
-    const response = await api.delete(`/repertoires/${id}`);
+    const response = await api.delete(`/users/repertoires/${id}`);
     return response.data;
   } catch (error) {
     console.error('Repertuar silinirken hata:', error);
@@ -316,7 +286,7 @@ export const deleteRepertoire = async (id: string) => {
 
 export const addSongToRepertoire = async (repertoireId: string, songId: string) => {
   try {
-    const response = await api.post(`/repertoires/${repertoireId}/songs`, { songId });
+    const response = await api.post(`/users/repertoires/${repertoireId}/songs`, { songId });
     return response.data;
   } catch (error) {
     console.error('Şarkı repertuara eklenirken hata:', error);
@@ -380,7 +350,7 @@ export const getRandomArtists = async (): Promise<Song[]> => {
 // Repertuvar oluşturma
 export const createRepertoireNew = async (name: string, songs: Song[]) => {
   try {
-    const response = await api.post('/repertoires', { name, songs });
+    const response = await api.post('/users/repertoires', { name, songs });
     return response.data;
   } catch (error) {
     console.error('Repertuvar oluşturulurken hata:', error);
@@ -391,7 +361,7 @@ export const createRepertoireNew = async (name: string, songs: Song[]) => {
 // Repertuar detaylarını getir
 export const getRepertoireDetails = async (id: string) => {
   try {
-    const response = await api.get(`/repertoires/${id}`);
+    const response = await api.get(`/users/repertoires/${id}`);
     return response.data;
   } catch (error) {
     console.error('Repertuar detayları alınırken hata:', error);

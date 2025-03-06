@@ -10,15 +10,16 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useColorScheme } from 'react-native';
 import { lightTheme, darkTheme } from '../src/theme/colors';
 import { getUserPrivateSongs } from '../src/db/database';
 import { useAuth } from '../src/context/AuthContext';
-import { useColorScheme } from 'react-native';
+import BottomNavigation, { BOTTOM_NAV_HEIGHT } from '../components/BottomNavigation';
 
 interface PrivateSong {
-  id: string;
+  _id: string;
   title: string;
   artist: string;
   created_at: string;
@@ -31,6 +32,7 @@ export default function PrivateSongs() {
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     loadPrivateSongs();
@@ -92,7 +94,7 @@ export default function PrivateSongs() {
       ) : (
         <FlatList
           data={songs}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item._id}
           renderItem={({ item }) => (
             <TouchableOpacity
               style={[styles.songItem, { backgroundColor: theme.card }]}
@@ -108,6 +110,7 @@ export default function PrivateSongs() {
           contentContainerStyle={styles.listContent}
         />
       )}
+      <BottomNavigation currentRoute={pathname} />
     </SafeAreaView>
   );
 }
@@ -161,7 +164,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   listContent: {
-    padding: 16,
+    paddingHorizontal: 15,
+    paddingBottom: BOTTOM_NAV_HEIGHT + 10,
   },
   songItem: {
     flexDirection: 'row',
