@@ -20,6 +20,7 @@ import { lightTheme, darkTheme } from '../src/theme/colors';
 import { useAuth } from '../src/context/AuthContext';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+import api from '../src/config/api';
 
 export default function EditProfile() {
   const { user, updateUserProfile } = useAuth();
@@ -34,6 +35,7 @@ export default function EditProfile() {
   useEffect(() => {
     if (user) {
       setDisplayName(user.name || '');
+      // Eğer kullanıcının fotoğrafı varsa, tam URL'i kullan
       setPhotoURL(user.photoURL || '');
     }
   }, [user]);
@@ -74,7 +76,7 @@ export default function EditProfile() {
     try {
       setLoading(true);
 
-      let photoData = '';
+      let photoData = photoURL;
       if (photoURL && photoURL.startsWith('file://')) {
         // Fotoğrafı base64'e çevir
         const response = await fetch(photoURL);
@@ -87,13 +89,21 @@ export default function EditProfile() {
         photoData = base64 as string;
       }
 
+      const response = await api.put('/users/profile', {
+        displayName,
+        photoURL: photoData,
+      });
+
+      const { user: updatedUser } = response.data;
+      
       // Context üzerinden profil güncelleme
       await updateUserProfile({
         displayName,
-        photoURL: photoData || photoURL,
+        photoURL: updatedUser.photoURL,
       });
 
-      router.back();
+      // Profil sayfasına yönlendir ve sayfayı yenile
+      router.replace('/profile');
     } catch (error) {
       console.error('Profil güncellenirken hata:', error);
       alert('Profil güncellenirken bir hata oluştu. Lütfen tekrar deneyin.');
@@ -123,14 +133,23 @@ export default function EditProfile() {
           <View style={styles.profileImageContainer}>
             {photoURL ? (
               <Image
-                source={{ uri: photoURL }}
+                source={{ 
+                  uri: photoURL.startsWith('http') 
+                    ? photoURL 
+                    : photoURL.startsWith('file://')
+                      ? photoURL
+                      : `http://192.168.1.23:5000${photoURL}`,
+                  cache: 'reload'
+                }}
                 style={styles.profileImage}
+                onError={(e) => console.log('Fotoğraf yükleme hatası:', e.nativeEvent.error)}
               />
             ) : (
               <View style={[styles.avatarContainer, { backgroundColor: theme.card }]}>
                 <Ionicons name="person" size={60} color={theme.primary} />
               </View>
             )}
+
             <TouchableOpacity 
               style={[styles.editPhotoButton, { backgroundColor: theme.primary }]}
               onPress={pickImage}
@@ -180,8 +199,8 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 32,
   },
   title: {
@@ -220,7 +239,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     elevation: 3,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
   },
@@ -232,12 +254,13 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   input: {
     height: 48,
-    borderWidth: 1,
     borderRadius: 8,
+    borderWidth: 1,
+    paddingVertical: 12,
     paddingHorizontal: 16,
     fontSize: 16,
   },

@@ -229,6 +229,49 @@ router.get('/:userId/private-songs', auth, async (req, res) => {
 });
 
 // Profil güncelleme
+router.put('/profile', auth, async (req, res) => {
+  try {
+    const { displayName, photoURL } = req.body;
+    const user = req.user;
+
+    if (displayName) {
+      user.name = displayName;
+    }
+    
+    if (photoURL) {
+      const photoData = photoURL;
+      // Base64 kontrolü
+      if (photoData.startsWith('data:image')) {
+        const photoExtension = photoData.split(';')[0].split('/')[1];
+        const base64Data = photoData.split(',')[1];
+
+        // Profil fotoğrafı için klasör oluştur
+        const profilePicturesDir = path.join(__dirname, '../../../assets/images/profilePictures');
+        if (!fs.existsSync(profilePicturesDir)) {
+          fs.mkdirSync(profilePicturesDir, { recursive: true });
+        }
+
+        // Profil fotoğrafı için dosya yolu
+        const photoFileName = `${user._id}.${photoExtension}`;
+        const photoPath = path.join(profilePicturesDir, photoFileName);
+
+        // Base64'ten dosyaya kaydet
+        fs.writeFileSync(photoPath, base64Data, 'base64');
+
+        // Kullanıcı verisini güncelle
+        user.photoURL = `/assets/images/profilePictures/${photoFileName}`;
+      }
+    }
+
+    await user.save();
+    res.json({ user });
+  } catch (error) {
+    console.error('Profil güncellenirken hata:', error);
+    res.status(500).json({ message: 'Profil güncellenirken hata oluştu' });
+  }
+});
+
+// Profil güncelleme
 router.put('/:id', auth, async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
@@ -242,20 +285,29 @@ router.put('/:id', auth, async (req, res) => {
     }
 
     // Profil fotoğrafı güncelleme
-    if (req.body.photoData) {
-      const photoData = req.body.photoData;
-      const photoExtension = photoData.split(';')[0].split('/')[1];
-      const base64Data = photoData.split(',')[1];
+    if (req.body.photoURL) {
+      const photoData = req.body.photoURL;
+      // Base64 kontrolü
+      if (photoData.startsWith('data:image')) {
+        const photoExtension = photoData.split(';')[0].split('/')[1];
+        const base64Data = photoData.split(',')[1];
 
-      // Profil fotoğrafı için dosya yolu
-      const photoFileName = `${user._id}.${photoExtension}`;
-      const photoPath = path.join(__dirname, '../../../assets/images/profilePictures', photoFileName);
+        // Profil fotoğrafı için klasör oluştur
+        const profilePicturesDir = path.join(__dirname, '../../../assets/images/profilePictures');
+        if (!fs.existsSync(profilePicturesDir)) {
+          fs.mkdirSync(profilePicturesDir, { recursive: true });
+        }
 
-      // Base64'ten dosyaya kaydet
-      fs.writeFileSync(photoPath, base64Data, 'base64');
+        // Profil fotoğrafı için dosya yolu
+        const photoFileName = `${user._id}.${photoExtension}`;
+        const photoPath = path.join(profilePicturesDir, photoFileName);
 
-      // Kullanıcı verisini güncelle
-      user.photoURL = `/assets/images/profilePictures/${photoFileName}`;
+        // Base64'ten dosyaya kaydet
+        fs.writeFileSync(photoPath, base64Data, 'base64');
+
+        // Kullanıcı verisini güncelle
+        user.photoURL = `/assets/images/profilePictures/${photoFileName}`;
+      }
     }
 
     await user.save();
@@ -263,6 +315,26 @@ router.put('/:id', auth, async (req, res) => {
   } catch (error) {
     console.error('Profil güncellenirken hata:', error);
     res.status(500).json({ message: error.message });
+  }
+});
+
+// Kullanıcı bilgilerini getir
+router.get('/me', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('-password -tokens');
+    if (!user) {
+      return res.status(404).json({ message: 'Kullanıcı bulunamadı' });
+    }
+
+    // PhotoURL'i düzelt
+    if (user.photoURL && !user.photoURL.startsWith('http')) {
+      user.photoURL = `/assets/images/profilePictures/${user._id}.jpeg`;
+    }
+
+    res.json(user);
+  } catch (error) {
+    console.error('Kullanıcı bilgileri getirilirken hata:', error);
+    res.status(500).json({ message: 'Kullanıcı bilgileri getirilirken hata oluştu' });
   }
 });
 

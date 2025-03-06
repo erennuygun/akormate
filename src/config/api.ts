@@ -33,11 +33,13 @@ loadStoredToken();
 
 // Request interceptor - token eklemek için
 api.interceptors.request.use(
-  (config) => {
-    if (currentToken) {
+  async (config) => {
+    // Her istekte token'ı AsyncStorage'dan al
+    const token = await AsyncStorage.getItem('token');
+    if (token) {
       // Bearer token formatını ekle
-      config.headers.Authorization = `Bearer ${currentToken}`;
-      console.log('Token gönderiliyor:', config.headers.Authorization);
+      config.headers.Authorization = `Bearer ${token}`;
+      currentToken = token;
     }
     return config;
   },

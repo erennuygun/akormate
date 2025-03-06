@@ -9,6 +9,7 @@ export interface User {
   name?: string;
   photoURL?: string;
   token?: string;
+  tokens?: Array<{ token: string; createdAt: string; _id: string }>;
 }
 
 export interface AuthContextType {
@@ -55,9 +56,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (userData: any) => {
     try {
-      await AsyncStorage.setItem('user', JSON.stringify(userData));
-      setUser(userData);
-      router.replace('/(tabs)');
+      // En son oluşturulan token'ı al
+      const latestToken = userData.tokens && userData.tokens.length > 0 
+        ? userData.tokens[userData.tokens.length - 1].token 
+        : null;
+
+      if (!latestToken) {
+        throw new Error('Token bulunamadı');
+      }
+
+      // Token'ı user nesnesine ekle
+      const userWithToken = {
+        ...userData,
+        token: latestToken
+      };
+
+      // Token'ı ayrı olarak sakla
+      await AsyncStorage.setItem('token', latestToken);
+      await AsyncStorage.setItem('user', JSON.stringify(userWithToken));
+      setUser(userWithToken);
+      router.replace('/chords'); // Akorlar sayfasına yönlendir
     } catch (error) {
       console.error('Error signing in:', error);
       throw error;
@@ -70,6 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
+      await AsyncStorage.removeItem('token');
       await AsyncStorage.removeItem('user');
       setUser(null);
       router.replace('/');

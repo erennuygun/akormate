@@ -23,7 +23,7 @@ export default function Login() {
       }
       
       await signIn(userData);
-      router.replace('/');
+      router.replace('/chords');
     } catch (error) {
       console.error('Login error:', error);
       Alert.alert('Giriş Hatası', 'Giriş yapılırken bir hata oluştu. Lütfen tekrar deneyin.');

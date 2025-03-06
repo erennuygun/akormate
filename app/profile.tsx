@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -29,17 +29,6 @@ export default function Profile() {
   const theme = isDarkMode ? darkTheme : lightTheme;
   const { user, signOut } = useAuth();
   const router = useRouter();
-
-  const getProfilePhotoUrl = () => {
-    console.log('User Object:', user);
-    if (!user?._id) {
-      console.log('No user ID found');
-      return null;
-    }
-    const photoUrl = `/assets/images/profilePictures/${user._id}.jpeg`;
-    console.log('Profile Photo URL:', photoUrl);
-    return photoUrl;
-  };
 
   const menuItems: MenuItem[] = [
     {
@@ -93,6 +82,12 @@ export default function Profile() {
 
   if (!user) return null;
 
+  console.log('Profile render - user data:', {
+    photoURL: user.photoURL,
+    name: user.name,
+    email: user.email
+  });
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
@@ -104,10 +99,17 @@ export default function Profile() {
 
       <View style={styles.userInfo}>
         <View style={styles.profileImageContainer}>
-          {getProfilePhotoUrl() ? (
+          {user.photoURL ? (
             <Image
-              source={{ uri: getProfilePhotoUrl() || undefined }}
+              source={{ 
+                uri: user.photoURL.startsWith('http') 
+                  ? user.photoURL 
+                  : `http://192.168.1.23:5000${user.photoURL}`,
+                cache: 'reload'
+              }}
               style={styles.profileImage}
+              onError={(e) => console.log('Fotoğraf yükleme hatası:', e.nativeEvent.error)}
+              resizeMode="cover"
             />
           ) : (
             <View style={[styles.avatarContainer, { backgroundColor: theme.card }]}>
@@ -202,7 +204,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
-    opacity:  0.9
+    opacity: 0.9
   },
   userName: {
     fontSize: 20,

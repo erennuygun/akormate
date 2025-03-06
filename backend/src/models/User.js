@@ -11,6 +11,13 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  name: {
+    type: String,
+    trim: true
+  },
+  photoURL: {
+    type: String
+  },
   tokens: [{
     token: {
       type: String,
