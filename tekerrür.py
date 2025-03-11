@@ -1,5 +1,5 @@
 # Dosya adı
-dosya_adi = "sanatcilar.txt"
+dosya_adi = "test.txt"
 
 # Dosyayı oku ve satırları liste olarak al
 with open(dosya_adi, "r", encoding="utf-8") as f:

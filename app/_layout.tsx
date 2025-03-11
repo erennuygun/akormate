@@ -1,14 +1,45 @@
 import { Stack } from 'expo-router';
-import { useColorScheme } from 'react-native';
+import { useColorScheme, View, Text } from 'react-native';
 import { lightTheme, darkTheme } from '../src/theme/colors';
 import { AuthProvider } from '../src/context/AuthContext';
+import { useEffect, useState } from 'react';
+import NetworkService from '../src/services/networkService';
 
 export default function Layout() {
   const isDarkMode = useColorScheme() === 'dark';
   const theme = isDarkMode ? darkTheme : lightTheme;
+  const [isOffline, setIsOffline] = useState(false);
+
+  useEffect(() => {
+    // İlk bağlantı kontrolü
+    NetworkService.checkConnection().then(isConnected => {
+      setIsOffline(!isConnected);
+    });
+
+    // Bağlantı değişikliklerini dinle
+    const unsubscribe = NetworkService.subscribeToConnectionChanges(isConnected => {
+      setIsOffline(!isConnected);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   return (
     <AuthProvider>
+      {isOffline && (
+        <View style={{ 
+          backgroundColor: theme.error, 
+          padding: 5,
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <Text style={{ color: theme.background }}>
+            Çevrimdışı mod - Sadece indirilen şarkılar görüntülenebilir
+          </Text>
+        </View>
+      )}
       <Stack
         screenOptions={{
           headerStyle: {

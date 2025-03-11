@@ -11,7 +11,8 @@ import {
   Dimensions,
   useColorScheme,
   Share,
-  Modal
+  Modal,
+  Switch
 } from 'react-native';
 import {
   useLocalSearchParams, router
@@ -94,6 +95,7 @@ export default function SongDetail() {
   const [selectedRepertoires, setSelectedRepertoires] = useState([]);
   const [selectedRepertoireNames, setSelectedRepertoireNames] = useState([]);
   const [isOfflineEnabled, setIsOfflineEnabled] = useState(false);
+  const [isOfflineSaved, setIsOfflineSaved] = useState(false);
 
   // Otomatik scroll'u temizle
   useEffect(() => {
@@ -180,6 +182,7 @@ export default function SongDetail() {
     if (song?._id) {
       checkFavorite();
       loadRepertoires();
+      checkOfflineStatus();
     }
   }, [song]);
 
@@ -328,28 +331,40 @@ export default function SongDetail() {
     }
   };
 
-  const handleOfflineToggle = async () => {
+  const checkOfflineStatus = async () => {
     try {
-      const newValue = !isOfflineEnabled;
-      setIsOfflineEnabled(newValue);
-      
-      if (newValue) {
-        // Save song for offline use
-        const offlineSongs = JSON.parse(await AsyncStorage.getItem('offline_songs') || '[]');
-        if (!offlineSongs.find(s => s._id === song._id)) {
-          offlineSongs.push(song);
-          await AsyncStorage.setItem('offline_songs', JSON.stringify(offlineSongs));
-          Alert.alert('Başarılı', 'Şarkı Profildeki İndirilenlere sayfasına eklendi');
-        }
+      const offlineSongs = await AsyncStorage.getItem('offline_songs');
+      if (offlineSongs) {
+        const songs = JSON.parse(offlineSongs);
+        const isSaved = songs.some(s => s._id === song._id);
+        setIsOfflineSaved(isSaved);
+      }
+    } catch (error) {
+      console.error('Error checking offline status:', error);
+    }
+  };
+
+  const toggleOfflineMode = async () => {
+    try {
+      const offlineSongs = await AsyncStorage.getItem('offline_songs') || '[]';
+      let songs = JSON.parse(offlineSongs);
+
+      if (!isOfflineSaved) {
+        // Şarkıyı offline storage'a ekle
+        songs.push(song);
+        await AsyncStorage.setItem('offline_songs', JSON.stringify(songs));
+        setIsOfflineSaved(true);
+        Alert.alert('Başarılı', 'Şarkı çevrimdışı kullanım için kaydedildi');
       } else {
-        // Remove song from offline storage
-        const offlineSongs = JSON.parse(await AsyncStorage.getItem('offline_songs') || '[]');
-        const updatedSongs = offlineSongs.filter(s => s._id !== song._id);
-        await AsyncStorage.setItem('offline_songs', JSON.stringify(updatedSongs));
+        // Şarkıyı offline storage'dan kaldır
+        songs = songs.filter(s => s._id !== song._id);
+        await AsyncStorage.setItem('offline_songs', JSON.stringify(songs));
+        setIsOfflineSaved(false);
+        Alert.alert('Bilgi', 'Şarkı çevrimdışı listesinden kaldırıldı');
       }
     } catch (error) {
       console.error('Error toggling offline mode:', error);
-      Alert.alert('Hata', 'Çevrimdışı mod ayarlanırken bir hata oluştu');
+      Alert.alert('Hata', 'Çevrimdışı mod değiştirilirken bir hata oluştu');
     }
   };
 
@@ -379,6 +394,13 @@ export default function SongDetail() {
               name={isFavorite ? 'heart' : 'heart-outline'}
               size={24}
               color={isFavorite ? theme.primary : theme.text + '66'}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={toggleOfflineMode} style={styles.iconButton}>
+            <Ionicons
+              name={isOfflineSaved ? "cloud-done" : "cloud-download"}
+              size={24}
+              color={theme.text + '66'}
             />
           </TouchableOpacity>
         </View>
@@ -590,14 +612,14 @@ export default function SongDetail() {
             <View style={styles.offlineContainer}>
               <TouchableOpacity 
                 style={styles.offlineContainer}
-                onPress={handleOfflineToggle}
+                onPress={toggleOfflineMode}
               >
                 <View style={[
                   styles.customCheckbox,
                   { borderColor: theme.text + '66' },
-                  isOfflineEnabled && { backgroundColor: theme.primary, borderColor: theme.primary }
+                  isOfflineSaved && { backgroundColor: theme.primary, borderColor: theme.primary }
                 ]}>
-                  {isOfflineEnabled && (
+                  {isOfflineSaved && (
                     <Ionicons name="checkmark" size={16} color={theme.background} />
                   )}
                 </View>
@@ -618,7 +640,7 @@ export default function SongDetail() {
               }}
             >
               <Text style={[styles.modalButtonText, { color: theme.primary }]}>
-                {selectedRepertoireNames.length > 0 || isOfflineEnabled ? 'Kaydet' : 'Kapat'}
+                {selectedRepertoireNames.length > 0 || isOfflineSaved ? 'Kaydet' : 'Kapat'}
               </Text>
             </TouchableOpacity>
           </View>

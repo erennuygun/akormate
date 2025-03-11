@@ -28,9 +28,26 @@ interface MenuItem {
 export default function Profile() {
   const isDarkMode = useColorScheme() === 'dark';
   const theme = isDarkMode ? darkTheme : lightTheme;
-  const { user, signOut } = useAuth();
+  const { user, signOut, checkTokenExpiration } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+
+  React.useEffect(() => {
+    const checkAuth = async () => {
+      if (!user) {
+        router.replace('/auth/login');
+        return;
+      }
+
+      const isExpired = await checkTokenExpiration();
+      if (isExpired) {
+        console.log('Token expired in profile page');
+        return;
+      }
+    };
+
+    checkAuth();
+  }, [user]);
 
   const menuItems: MenuItem[] = [
     {

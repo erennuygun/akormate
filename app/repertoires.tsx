@@ -43,7 +43,7 @@ export default function Repertoires() {
   const theme = isDarkMode ? darkTheme : lightTheme;
   const router = useRouter();
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, checkTokenExpiration } = useAuth();
 
   const [repertoires, setRepertoires] = useState<Repertoire[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,8 +55,24 @@ export default function Repertoires() {
   const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
-    loadRepertoires();
-  }, []);
+    const checkAuth = async () => {
+      if (!user) {
+        router.replace('/auth/login');
+        return;
+      }
+
+      const isExpired = await checkTokenExpiration();
+      if (isExpired) {
+        console.log('Token expired in repertoires page');
+        return;
+      }
+
+      // Token geçerliyse repertuarları yükle
+      loadRepertoires();
+    };
+
+    checkAuth();
+  }, [user]);
 
   useEffect(() => {
     if (pathname === '/repertoires') {
