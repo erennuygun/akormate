@@ -15,7 +15,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.sainteryn.akorMate"
     },
     "web": {
       "bundler": "metro",
@@ -32,6 +33,15 @@
         }
       ],
       "expo-sqlite"
-    ]
+    ],
+    "extra": {
+      "router": {
+        "origin": false
+      }
+    },
+    "owner": "sainteryn",
+    "eas": {
+      "projectId": "d8ad8739-bef5-49d2-ac2f-157ded5d30f8"
+    }
   }
 }
